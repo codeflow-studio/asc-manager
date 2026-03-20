@@ -13,11 +13,11 @@ export default function AddAccountModal({ onClose, onAdd, isMobile }) {
   return (
     <div
       onClick={onClose}
-      className={`fixed inset-0 bg-black/70 backdrop-blur-[8px] flex justify-center z-[100] ${isMobile ? "items-end" : "items-center"}`}
+      className={`fixed inset-0 bg-black/40 backdrop-blur-[8px] flex justify-center z-[100] ${isMobile ? "items-end" : "items-center"}`}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`bg-dark-card border border-dark-border-light w-full overflow-y-auto shadow-[0_32px_64px_rgba(0,0,0,0.5)] ${
+        className={`bg-dark-card border border-dark-border-light w-full overflow-y-auto shadow-[0_32px_64px_rgba(0,0,0,0.15)] ${
           isMobile
             ? "rounded-t-2xl max-w-full max-h-[90vh]"
             : "rounded-2xl max-w-[520px]"

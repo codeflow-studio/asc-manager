@@ -3,6 +3,7 @@ import { ACCOUNTS } from "../config/accounts.js";
 import { ascFetch } from "../lib/asc-client.js";
 
 const router = Router();
+const iconCache = new Map();
 
 router.get("/", async (_req, res) => {
   const allApps = [];
@@ -49,6 +50,37 @@ router.get("/", async (_req, res) => {
       console.error(`Failed to fetch apps for ${account.name}:`, err.message);
     }
   }
+
+  // Fetch icon URLs from iTunes Lookup API
+  const uncachedApps = allApps.filter((app) => {
+    if (iconCache.has(app.bundleId)) {
+      app.iconUrl = iconCache.get(app.bundleId);
+      return false;
+    }
+    return true;
+  });
+
+  await Promise.allSettled(
+    uncachedApps.map(async (app) => {
+      try {
+        const lookupRes = await fetch(
+          `https://itunes.apple.com/lookup?bundleId=${encodeURIComponent(app.bundleId)}&country=US&limit=1`
+        );
+        if (lookupRes.ok) {
+          const lookupData = await lookupRes.json();
+          if (lookupData.resultCount > 0) {
+            const url = lookupData.results[0].artworkUrl512 || lookupData.results[0].artworkUrl100 || null;
+            app.iconUrl = url;
+            iconCache.set(app.bundleId, url);
+          } else {
+            iconCache.set(app.bundleId, null);
+          }
+        }
+      } catch {
+        // Silently fail -- frontend will use emoji fallback
+      }
+    })
+  );
 
   res.json(allApps);
 });

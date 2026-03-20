@@ -1,62 +1,96 @@
+import { useState } from "react";
 import Badge from "./Badge.jsx";
+
+const PLACEHOLDER_GRADIENTS = [
+  "linear-gradient(135deg, #5ac8fa, #007aff)",
+  "linear-gradient(135deg, #34c759, #30b0c7)",
+  "linear-gradient(135deg, #ff9500, #ff2d55)",
+  "linear-gradient(135deg, #af52de, #5856d6)",
+  "linear-gradient(135deg, #ff2d55, #ff6482)",
+  "linear-gradient(135deg, #007aff, #5856d6)",
+  "linear-gradient(135deg, #34c759, #007aff)",
+  "linear-gradient(135deg, #ff9500, #ffcc00)",
+];
+
+function getPlaceholderGradient(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  }
+  return PLACEHOLDER_GRADIENTS[Math.abs(hash) % PLACEHOLDER_GRADIENTS.length];
+}
+
+function AppIcon({ app }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (app.iconUrl && !imgError) {
+    return (
+      <img
+        src={app.iconUrl}
+        alt={app.name}
+        className="w-[72px] h-[72px] rounded-[18px] shrink-0 object-cover"
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  const letter = app.name.charAt(0).toUpperCase();
+
+  return (
+    <div
+      className="w-[72px] h-[72px] rounded-[18px] shrink-0 flex items-center justify-center text-white font-bold text-2xl select-none"
+      style={{ background: getPlaceholderGradient(app.name) }}
+    >
+      {letter}
+    </div>
+  );
+}
 
 export default function AppGrid({ filtered, accounts, onSelectApp, isMobile }) {
   if (filtered.length === 0) {
     return (
-      <div className={`text-center text-dark-ghost ${isMobile ? "px-4 py-10" : "px-5 py-[60px]"}`}>
-        <div className="text-4xl mb-2.5">{"\ud83d\udd0d"}</div>
+      <div className="text-center text-dark-ghost px-5 py-16">
         <div className="text-sm font-semibold">No apps found</div>
         <div className="text-xs mt-1 text-dark-phantom">Adjust filters or search query</div>
       </div>
     );
   }
 
+  const columns = isMobile ? 1 : 3;
+  const rows = [];
+  for (let i = 0; i < filtered.length; i += columns) {
+    rows.push(filtered.slice(i, i + columns));
+  }
+
   return (
-    <div className={`grid gap-2 ${isMobile ? "grid-cols-1" : "grid-cols-[repeat(auto-fill,minmax(340px,1fr))]"}`}>
-      {filtered.map((app, idx) => {
-        const acct = accounts.find((a) => a.name === app.account);
-        return (
+    <div>
+      {rows.map((row, rowIdx) => (
+        <div key={rowIdx}>
+          <div className="border-t border-dark-border" />
           <div
-            key={app.id}
-            onClick={() => onSelectApp(app)}
-            className={`asc-app-card bg-dark-card border border-dark-border rounded-xl flex items-center cursor-pointer transition-all ${
-              isMobile ? "px-3.5 py-3 gap-3" : "px-4 py-3.5 gap-3.5"
-            }`}
-            style={{ animation: `asc-fadein 0.3s ease ${idx * 20}ms both` }}
+            className={`grid ${isMobile ? "grid-cols-1" : "grid-cols-3"}`}
+            style={{ animation: `asc-fadein 0.3s ease ${rowIdx * 40}ms both` }}
           >
-            <div
-              className={`rounded-xl bg-dark-border border border-dark-hover-border flex items-center justify-center shrink-0 ${
-                isMobile ? "w-11 h-11 text-xl" : "w-[50px] h-[50px] text-[22px]"
-              }`}
-            >
-              {app.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13.5px] font-bold overflow-hidden text-ellipsis whitespace-nowrap">
-                {app.name}
+            {row.map((app) => (
+              <div
+                key={app.id}
+                onClick={() => onSelectApp(app)}
+                className="asc-app-card flex items-center gap-4 px-3 cursor-pointer rounded-lg transition-colors"
+                style={{ paddingTop: 24, paddingBottom: 24 }}
+              >
+                <AppIcon app={app} />
+                <div className="min-w-0">
+                  <div className="text-[15px] font-semibold text-dark-text truncate">
+                    {app.name}
+                  </div>
+                  <Badge status={app.status} version={app.version} platform={app.platform} />
+                </div>
               </div>
-              <div className="flex items-center gap-2 mt-[5px]">
-                <Badge status={app.status} />
-                <span className="text-[11px] text-dark-ghost font-mono">
-                  {app.platform} {app.version}
-                </span>
-              </div>
-              <div className="flex items-center gap-[5px] mt-[5px]">
-                {acct && (
-                  <span
-                    className="w-[7px] h-[7px] rounded-full"
-                    style={{ background: acct.color }}
-                  />
-                )}
-                <span className="text-[11px] text-dark-ghost">{app.account}</span>
-              </div>
-            </div>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#222228" strokeWidth="2.5" className="shrink-0">
-              <path d="M9 18l6-6-6-6" />
-            </svg>
+            ))}
           </div>
-        );
-      })}
+        </div>
+      ))}
+      <div className="border-t border-dark-border" />
     </div>
   );
 }

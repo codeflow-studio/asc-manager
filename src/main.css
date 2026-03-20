@@ -1,39 +1,39 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "DM Sans", "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --font-sans: "SF Pro Display", -apple-system, BlinkMacSystemFont, "DM Sans", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
 
-  --color-dark-bg: #09090b;
-  --color-dark-card: #111114;
-  --color-dark-surface: #0c0c0e;
-  --color-dark-sidebar: #0f0f12;
-  --color-dark-border: #1a1a1f;
-  --color-dark-border-light: #1f1f25;
-  --color-dark-hover: #151518;
-  --color-dark-hover-border: #222228;
+  --color-dark-bg: #ffffff;
+  --color-dark-card: #ffffff;
+  --color-dark-surface: #f9f9fb;
+  --color-dark-sidebar: #f5f5f7;
+  --color-dark-border: #e5e5ea;
+  --color-dark-border-light: #d1d1d6;
+  --color-dark-hover: #f5f5f7;
+  --color-dark-hover-border: #d1d1d6;
 
-  --color-dark-text: #e4e4e7;
-  --color-dark-muted: #6b6b75;
-  --color-dark-dim: #5a5a65;
-  --color-dark-faint: #4a4a55;
-  --color-dark-ghost: #3a3a45;
-  --color-dark-phantom: #2a2a35;
-  --color-dark-label: #8b8b95;
+  --color-dark-text: #1d1d1f;
+  --color-dark-muted: #86868b;
+  --color-dark-dim: #6e6e73;
+  --color-dark-faint: #86868b;
+  --color-dark-ghost: #8e8e93;
+  --color-dark-phantom: #aeaeb2;
+  --color-dark-label: #6e6e73;
 
-  --color-accent: #3b82f6;
-  --color-accent-light: #60a5fa;
-  --color-accent-bg: rgba(59, 130, 246, 0.08);
-  --color-accent-border: rgba(59, 130, 246, 0.12);
-  --color-accent-focus: rgba(59, 130, 246, 0.4);
+  --color-accent: #007aff;
+  --color-accent-light: #007aff;
+  --color-accent-bg: rgba(0, 122, 255, 0.08);
+  --color-accent-border: rgba(0, 122, 255, 0.15);
+  --color-accent-focus: rgba(0, 122, 255, 0.4);
 
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-purple: #a78bfa;
-  --color-purple-accent: #c084fc;
-  --color-pink: #ec4899;
-  --color-teal: #14b8a6;
+  --color-success: #34c759;
+  --color-warning: #ff9500;
+  --color-danger: #ff3b30;
+  --color-purple: #af52de;
+  --color-purple-accent: #bf5af2;
+  --color-pink: #ff2d55;
+  --color-teal: #5ac8fa;
 }
 
 @keyframes asc-spin {
@@ -81,7 +81,6 @@ textarea:focus {
 
 .asc-app-card:hover {
   background: var(--color-dark-hover) !important;
-  border-color: var(--color-dark-hover-border) !important;
 }
 
 .asc-status-pills::-webkit-scrollbar {
@@ -96,10 +95,8 @@ textarea:focus {
 @media (max-width: 767px) {
   .asc-app-card:hover {
     background: var(--color-dark-card) !important;
-    border-color: var(--color-dark-border) !important;
   }
   .asc-app-card:active {
     background: var(--color-dark-hover) !important;
-    border-color: var(--color-dark-hover-border) !important;
   }
 }
