@@ -41,6 +41,11 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes asc-slidein {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 @keyframes asc-fadein {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }

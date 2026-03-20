@@ -4,6 +4,7 @@ import { ascFetch } from "../lib/asc-client.js";
 
 const router = Router();
 const iconCache = new Map();
+const lookupCache = new Map();
 
 router.get("/", async (_req, res) => {
   const allApps = [];
@@ -84,6 +85,52 @@ router.get("/", async (_req, res) => {
   );
 
   res.json(allApps);
+});
+
+router.get("/lookup", async (req, res) => {
+  const { bundleId } = req.query;
+  if (!bundleId) {
+    return res.status(400).json({ error: "bundleId query parameter is required" });
+  }
+
+  if (lookupCache.has(bundleId)) {
+    return res.json(lookupCache.get(bundleId));
+  }
+
+  try {
+    const lookupRes = await fetch(
+      `https://itunes.apple.com/lookup?bundleId=${encodeURIComponent(bundleId)}&country=US&limit=1`
+    );
+    if (!lookupRes.ok) {
+      return res.json({ found: false });
+    }
+
+    const lookupData = await lookupRes.json();
+    if (lookupData.resultCount === 0) {
+      const result = { found: false };
+      lookupCache.set(bundleId, result);
+      return res.json(result);
+    }
+
+    const r = lookupData.results[0];
+    const result = {
+      found: true,
+      description: r.description || null,
+      averageUserRating: r.averageUserRating || null,
+      userRatingCount: r.userRatingCount || 0,
+      sellerName: r.sellerName || null,
+      price: r.price ?? null,
+      formattedPrice: r.formattedPrice || null,
+      primaryGenreName: r.primaryGenreName || null,
+      screenshotUrls: r.screenshotUrls || [],
+      trackViewUrl: r.trackViewUrl || null,
+    };
+    lookupCache.set(bundleId, result);
+    res.json(result);
+  } catch (err) {
+    console.error(`iTunes lookup failed for ${bundleId}:`, err.message);
+    res.json({ found: false });
+  }
 });
 
 router.get("/:appId/versions", async (req, res) => {

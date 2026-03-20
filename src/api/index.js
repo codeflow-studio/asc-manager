@@ -30,3 +30,17 @@ export async function deleteAccount(id) {
   const res = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Failed to delete account: ${res.status}`);
 }
+
+export async function fetchVersions(appId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/versions?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch versions: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAppLookup(bundleId) {
+  const params = new URLSearchParams({ bundleId });
+  const res = await fetch(`/api/apps/lookup?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch app lookup: ${res.status}`);
+  return res.json();
+}

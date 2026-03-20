@@ -4,7 +4,12 @@ import { fetchApps, fetchAccounts, createAccount } from "../api/index.js";
 import TopBar from "./TopBar.jsx";
 import AppGrid from "./AppGrid.jsx";
 import AddAccountModal from "./AddAccountModal.jsx";
-import AppDetailModal from "./AppDetailModal.jsx";
+import AppDetailPage from "./AppDetailPage.jsx";
+
+function getAppIdFromPath() {
+  const match = window.location.pathname.match(/^\/app\/(\d+)$/);
+  return match ? match[1] : null;
+}
 
 export default function AppStoreManager() {
   const isMobile = useIsMobile();
@@ -20,12 +25,27 @@ export default function AppStoreManager() {
   const [selectedApp, setSelectedApp] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
+  const selectApp = useCallback((app) => {
+    setSelectedApp(app);
+    if (app) {
+      window.history.pushState({ appId: app.id }, "", `/app/${app.id}`);
+    } else {
+      window.history.pushState(null, "", "/");
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setError(null);
       const [accts, appsList] = await Promise.all([fetchAccounts(), fetchApps()]);
       setAccounts(accts);
       setApps(appsList);
+
+      const pendingAppId = getAppIdFromPath();
+      if (pendingAppId) {
+        const match = appsList.find((a) => a.id === pendingAppId);
+        if (match) setSelectedApp(match);
+      }
     } catch (err) {
       setError(err.message);
       console.error("Failed to load data:", err);
@@ -39,6 +59,20 @@ export default function AppStoreManager() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    function onPopState() {
+      const appId = getAppIdFromPath();
+      if (appId) {
+        const match = apps.find((a) => a.id === appId);
+        setSelectedApp(match || null);
+      } else {
+        setSelectedApp(null);
+      }
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [apps]);
+
   const filtered = apps.filter((a) => {
     if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.bundleId.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterStatus !== "ALL" && a.status !== filterStatus) return false;
@@ -47,6 +81,18 @@ export default function AppStoreManager() {
   });
 
   const uniqueStatuses = [...new Set(apps.map((a) => a.status))];
+
+  if (selectedApp) {
+    return (
+      <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
+        <AppDetailPage
+          app={selectedApp}
+          accounts={accounts}
+          isMobile={isMobile}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
@@ -89,7 +135,7 @@ export default function AppStoreManager() {
           <AppGrid
             filtered={filtered}
             accounts={accounts}
-            onSelectApp={setSelectedApp}
+            onSelectApp={selectApp}
             isMobile={isMobile}
           />
         )}
@@ -113,14 +159,6 @@ export default function AppStoreManager() {
               setError(err.message);
             }
           }}
-          isMobile={isMobile}
-        />
-      )}
-      {selectedApp && (
-        <AppDetailModal
-          app={selectedApp}
-          accounts={accounts}
-          onClose={() => setSelectedApp(null)}
           isMobile={isMobile}
         />
       )}
