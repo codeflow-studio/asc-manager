@@ -12,10 +12,4 @@ export const STATUS_MAP = {
   REMOVED_FROM_SALE: { label: "Removed", color: "#8e8e93", bg: "rgba(142,142,147,0.12)" },
 };
 
-export const APP_ICONS = [
-  "\ud83d\udcf1", "\ud83d\udcca", "\ud83d\udcc4", "\ud83c\udfb5", "\ud83d\udcf7", "\ud83c\udfa8", "\u2702\ufe0f", "\ud83d\uddbc\ufe0f",
-  "\ud83d\udd24", "\ud83e\udd16", "\ud83e\udde9", "\ud83d\udccb", "\ud83d\udcf8", "\ud83c\udf2b\ufe0f", "\ud83d\udd32", "\u23f1\ufe0f",
-  "\ud83c\udfc3", "\u2728", "\ud83d\udc76", "\ud83c\udfb6",
-];
-
 export const ACCT_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#a78bfa", "#ef4444", "#ec4899", "#14b8a6"];

@@ -74,15 +74,47 @@ router.get("/", async (_req, res) => {
             const url = lookupData.results[0].artworkUrl512 || lookupData.results[0].artworkUrl100 || null;
             app.iconUrl = url;
             iconCache.set(app.bundleId, url);
-          } else {
-            iconCache.set(app.bundleId, null);
           }
         }
       } catch {
-        // Silently fail -- frontend will use emoji fallback
+        // Silently fail -- fallback to build icon below
       }
     })
   );
+
+  // Fallback: fetch build icons from ASC API for apps without iTunes icons
+  // (e.g., apps not yet published, or only available in non-US stores)
+  const appsWithoutIcon = allApps.filter((app) => !app.iconUrl);
+  if (appsWithoutIcon.length > 0) {
+    const accountsMap = new Map(accounts.map((a) => [a.id, a]));
+
+    await Promise.allSettled(
+      appsWithoutIcon.map(async (app) => {
+        try {
+          const account = accountsMap.get(app.accountId);
+          if (!account) return;
+
+          const buildsData = await ascFetch(
+            account,
+            `/v1/apps/${app.id}/builds?limit=1&fields[builds]=iconAssetToken`
+          );
+          if (!buildsData.data?.length) return;
+
+          const token = buildsData.data[0].attributes?.iconAssetToken;
+          if (token?.templateUrl) {
+            const url = token.templateUrl
+              .replace("{w}", "512")
+              .replace("{h}", "512")
+              .replace("{f}", "png");
+            app.iconUrl = url;
+            iconCache.set(app.bundleId, url);
+          }
+        } catch {
+          // Silently fail -- frontend will use gradient placeholder
+        }
+      })
+    );
+  }
 
   res.json(allApps);
 });

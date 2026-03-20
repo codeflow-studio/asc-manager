@@ -1,4 +1,4 @@
-import { STATUS_MAP, APP_ICONS } from "../constants/index.js";
+import { STATUS_MAP } from "../constants/index.js";
 
 export function getStatus(st) {
   return STATUS_MAP[st] || {
@@ -6,12 +6,4 @@ export function getStatus(st) {
     color: "#6b7280",
     bg: "rgba(107,114,128,0.1)",
   };
-}
-
-export function getAppIcon(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
-  }
-  return APP_ICONS[Math.abs(hash) % APP_ICONS.length];
 }
