@@ -1,10 +1,5 @@
-export const ACCOUNTS = [
-  {
-    id: "1",
-    name: "UNIT VIET NAM JSC",
-    issuerId: "REDACTED_ISSUER_ID",
-    keyId: "REDACTED_KEY_ID",
-    keyFile: "AuthKey_REDACTED_KEY_ID_issuer_REDACTED_ISSUER_ID.p8",
-    color: "#3b82f6",
-  },
-];
+// Accounts are now stored locally in data/accounts.json (outside git).
+// Use the "Connect Account" button in the UI or POST /api/accounts to add accounts.
+// This file is kept for backward compatibility but is no longer the primary store.
+
+export const ACCOUNTS = [];

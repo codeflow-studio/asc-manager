@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ACCOUNTS } from "../config/accounts.js";
+import { getAccounts } from "../lib/account-store.js";
 import { ascFetch } from "../lib/asc-client.js";
 
 const router = Router();
@@ -7,8 +7,9 @@ const iconCache = new Map();
 
 router.get("/", async (_req, res) => {
   const allApps = [];
+  const accounts = getAccounts();
 
-  for (const account of ACCOUNTS) {
+  for (const account of accounts) {
     try {
       const data = await ascFetch(
         account,
@@ -89,8 +90,9 @@ router.get("/:appId/versions", async (req, res) => {
   const { appId } = req.params;
   const { accountId } = req.query;
 
+  const accounts = getAccounts();
   const account =
-    ACCOUNTS.find((a) => a.id === accountId) || ACCOUNTS[0];
+    accounts.find((a) => a.id === accountId) || accounts[0];
 
   try {
     const data = await ascFetch(

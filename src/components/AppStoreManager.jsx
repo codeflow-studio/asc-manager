@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useIsMobile } from "../hooks/useIsMobile.js";
-import { fetchApps, fetchAccounts } from "../api/index.js";
+import { fetchApps, fetchAccounts, createAccount } from "../api/index.js";
 import TopBar from "./TopBar.jsx";
 import AppGrid from "./AppGrid.jsx";
 import AddAccountModal from "./AddAccountModal.jsx";
@@ -98,7 +98,21 @@ export default function AppStoreManager() {
       {showAdd && (
         <AddAccountModal
           onClose={() => setShowAdd(false)}
-          onAdd={(a) => setAccounts((prev) => [...prev, a])}
+          onAdd={async (a) => {
+            try {
+              await createAccount({
+                name: a.name,
+                issuerId: a.issuer,
+                keyId: a.keyId,
+                privateKey: a.pk,
+                color: a.color,
+              });
+              loadData();
+            } catch (err) {
+              console.error("Failed to add account:", err);
+              setError(err.message);
+            }
+          }}
           isMobile={isMobile}
         />
       )}

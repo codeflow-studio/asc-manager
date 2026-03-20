@@ -3,6 +3,9 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 function loadPrivateKey(account) {
+  if (account.privateKey) {
+    return account.privateKey;
+  }
   const keyPath = join(process.cwd(), account.keyFile);
   return readFileSync(keyPath, "utf8");
 }

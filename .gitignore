@@ -7,6 +7,9 @@ dist/
 # App Store Connect private keys
 *.p8
 
+# Local account data (credentials)
+data/
+
 # Environment variables
 .env
 .env.*
