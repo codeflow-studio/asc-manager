@@ -8,6 +8,7 @@ import AppGrid from "./AppGrid.jsx";
 import AddAccountModal from "./AddAccountModal.jsx";
 import AppDetailPage from "./AppDetailPage.jsx";
 import VersionDetailPage from "./VersionDetailPage.jsx";
+import ProductsPage from "./ProductsPage.jsx";
 
 function buildGroups(apps, groupBy, accounts) {
   if (groupBy === "none") return [{ key: "all", label: null, apps }];
@@ -33,14 +34,15 @@ function buildGroups(apps, groupBy, accounts) {
   return groups;
 }
 
-function getAppIdFromPath() {
-  const match = window.location.pathname.match(/^\/app\/(\d+)$/);
-  return match ? match[1] : null;
-}
-
-function getVersionIdFromPath() {
-  const match = window.location.pathname.match(/^\/app\/([^/]+)\/version\/([^/]+)$/);
-  return match ? { appId: match[1], versionId: match[2] } : null;
+function getRouteFromPath() {
+  const path = window.location.pathname;
+  const versionMatch = path.match(/^\/app\/([^/]+)\/version\/([^/]+)$/);
+  if (versionMatch) return { appId: versionMatch[1], versionId: versionMatch[2], subPage: null };
+  const productsMatch = path.match(/^\/app\/([^/]+)\/products$/);
+  if (productsMatch) return { appId: productsMatch[1], versionId: null, subPage: "products" };
+  const appMatch = path.match(/^\/app\/([^/]+)$/);
+  if (appMatch) return { appId: appMatch[1], versionId: null, subPage: null };
+  return { appId: null, versionId: null, subPage: null };
 }
 
 export default function AppStoreManager() {
@@ -62,11 +64,13 @@ export default function AppStoreManager() {
   }, [isMobile]);
   const [selectedApp, setSelectedApp] = useState(null);
   const [selectedVersion, setSelectedVersion] = useState(null);
+  const [currentView, setCurrentView] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
   const selectApp = useCallback((app) => {
     setSelectedApp(app);
     setSelectedVersion(null);
+    setCurrentView(app ? "detail" : null);
     if (app) {
       window.history.pushState({ appId: app.id }, "", `/app/${app.id}`);
     } else {
@@ -76,11 +80,19 @@ export default function AppStoreManager() {
 
   const selectVersion = useCallback((version, app) => {
     setSelectedVersion({ version, app });
+    setCurrentView("version");
     window.history.pushState(
       { appId: app.id, versionId: version.id },
       "",
       `/app/${app.id}/version/${version.id}`
     );
+  }, []);
+
+  const navigateToProducts = useCallback((app) => {
+    setSelectedApp(app);
+    setSelectedVersion(null);
+    setCurrentView("products");
+    window.history.pushState({ appId: app.id, subPage: "products" }, "", `/app/${app.id}/products`);
   }, []);
 
   const loadData = useCallback(async (fresh = false) => {
@@ -90,24 +102,31 @@ export default function AppStoreManager() {
       setAccounts(accts);
       setApps(appsList);
 
-      const versionPath = getVersionIdFromPath();
-      if (versionPath) {
-        const appMatch = appsList.find((a) => a.id === versionPath.appId);
+      const route = getRouteFromPath();
+      if (route.versionId) {
+        const appMatch = appsList.find((a) => a.id === route.appId);
         if (appMatch) {
           setSelectedApp(appMatch);
+          setCurrentView("version");
           try {
             const versions = await fetchVersions(appMatch.id, appMatch.accountId);
-            const vMatch = versions.find((v) => v.id === versionPath.versionId);
+            const vMatch = versions.find((v) => v.id === route.versionId);
             if (vMatch) setSelectedVersion({ version: vMatch, app: appMatch });
           } catch {
             // Version deep-link failed, stay on app detail
           }
         }
-      } else {
-        const pendingAppId = getAppIdFromPath();
-        if (pendingAppId) {
-          const match = appsList.find((a) => a.id === pendingAppId);
-          if (match) setSelectedApp(match);
+      } else if (route.subPage === "products") {
+        const appMatch = appsList.find((a) => a.id === route.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          setCurrentView("products");
+        }
+      } else if (route.appId) {
+        const match = appsList.find((a) => a.id === route.appId);
+        if (match) {
+          setSelectedApp(match);
+          setCurrentView("detail");
         }
       }
     } catch (err) {
@@ -125,31 +144,43 @@ export default function AppStoreManager() {
 
   useEffect(() => {
     function onPopState() {
-      const versionPath = getVersionIdFromPath();
-      if (versionPath) {
-        const appMatch = apps.find((a) => a.id === versionPath.appId);
+      const route = getRouteFromPath();
+
+      if (route.versionId) {
+        const appMatch = apps.find((a) => a.id === route.appId);
         if (appMatch) {
           setSelectedApp(appMatch);
+          setCurrentView("version");
           fetchVersions(appMatch.id, appMatch.accountId)
             .then((versions) => {
-              const vMatch = versions.find((v) => v.id === versionPath.versionId);
+              const vMatch = versions.find((v) => v.id === route.versionId);
               setSelectedVersion(vMatch ? { version: vMatch, app: appMatch } : null);
             })
             .catch(() => setSelectedVersion(null));
         } else {
           setSelectedApp(null);
           setSelectedVersion(null);
+          setCurrentView(null);
         }
         return;
       }
 
       setSelectedVersion(null);
-      const appId = getAppIdFromPath();
-      if (appId) {
-        const match = apps.find((a) => a.id === appId);
+
+      if (route.subPage === "products") {
+        const appMatch = apps.find((a) => a.id === route.appId);
+        setSelectedApp(appMatch || null);
+        setCurrentView(appMatch ? "products" : null);
+        return;
+      }
+
+      if (route.appId) {
+        const match = apps.find((a) => a.id === route.appId);
         setSelectedApp(match || null);
+        setCurrentView(match ? "detail" : null);
       } else {
         setSelectedApp(null);
+        setCurrentView(null);
       }
     }
     window.addEventListener("popstate", onPopState);
@@ -168,12 +199,24 @@ export default function AppStoreManager() {
   const toggleSidebar = () => setSidebarOpen((v) => !v);
   const closeSidebarOnMobile = () => { if (isMobile) setSidebarOpen(false); };
 
-  if (selectedVersion) {
+  if (currentView === "version" && selectedVersion) {
     return (
       <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
         <VersionDetailPage
           app={selectedVersion.app}
           version={selectedVersion.version}
+          accounts={accounts}
+          isMobile={isMobile}
+        />
+      </div>
+    );
+  }
+
+  if (currentView === "products" && selectedApp) {
+    return (
+      <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
+        <ProductsPage
+          app={selectedApp}
           accounts={accounts}
           isMobile={isMobile}
         />
@@ -189,6 +232,7 @@ export default function AppStoreManager() {
           accounts={accounts}
           isMobile={isMobile}
           onSelectVersion={(version) => selectVersion(version, selectedApp)}
+          onViewProducts={() => navigateToProducts(selectedApp)}
         />
       </div>
     );

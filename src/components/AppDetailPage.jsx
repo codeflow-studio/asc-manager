@@ -15,7 +15,7 @@ function StarRating({ rating }) {
   return <span className="text-warning tracking-wider">{stars.join("")}</span>;
 }
 
-export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion }) {
+export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion, onViewProducts }) {
   const [lookupData, setLookupData] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(true);
   const [descExpanded, setDescExpanded] = useState(false);
@@ -85,6 +85,14 @@ export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion
               >
                 TestFlight
               </a>
+              {onViewProducts && (
+                <button
+                  onClick={onViewProducts}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-[12px] font-semibold bg-dark-surface text-dark-label border border-dark-border-light cursor-pointer font-sans"
+                >
+                  Manage Products
+                </button>
+              )}
             </div>
           </div>
         </div>
