@@ -1,5 +1,6 @@
-export async function fetchApps() {
-  const res = await fetch("/api/apps");
+export async function fetchApps({ fresh = false } = {}) {
+  const url = fresh ? "/api/apps?fresh=true" : "/api/apps";
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch apps: ${res.status}`);
   const data = await res.json();
   return data.map((app) => ({ ...app, iconUrl: app.iconUrl || null }));

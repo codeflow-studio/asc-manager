@@ -1,12 +1,18 @@
 import { Router } from "express";
 import { getAccounts } from "../lib/account-store.js";
 import { ascFetch } from "../lib/asc-client.js";
+import { apiCache } from "../lib/cache.js";
 
 const router = Router();
 const iconCache = new Map();
-const lookupCache = new Map();
 
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
+  const fresh = req.query.fresh === "true";
+  if (!fresh) {
+    const cached = apiCache.get("apps:list");
+    if (cached) return res.json(cached);
+  }
+
   const allApps = [];
   const accounts = getAccounts();
 
@@ -116,6 +122,7 @@ router.get("/", async (_req, res) => {
     );
   }
 
+  apiCache.set("apps:list", allApps);
   res.json(allApps);
 });
 
@@ -125,9 +132,8 @@ router.get("/lookup", async (req, res) => {
     return res.status(400).json({ error: "bundleId query parameter is required" });
   }
 
-  if (lookupCache.has(bundleId)) {
-    return res.json(lookupCache.get(bundleId));
-  }
+  const cached = apiCache.get(`apps:lookup:${bundleId}`);
+  if (cached) return res.json(cached);
 
   try {
     const lookupRes = await fetch(
@@ -140,7 +146,7 @@ router.get("/lookup", async (req, res) => {
     const lookupData = await lookupRes.json();
     if (lookupData.resultCount === 0) {
       const result = { found: false };
-      lookupCache.set(bundleId, result);
+      apiCache.set(`apps:lookup:${bundleId}`, result);
       return res.json(result);
     }
 
@@ -157,7 +163,7 @@ router.get("/lookup", async (req, res) => {
       screenshotUrls: r.screenshotUrls || [],
       trackViewUrl: r.trackViewUrl || null,
     };
-    lookupCache.set(bundleId, result);
+    apiCache.set(`apps:lookup:${bundleId}`, result);
     res.json(result);
   } catch (err) {
     console.error(`iTunes lookup failed for ${bundleId}:`, err.message);
@@ -167,7 +173,13 @@ router.get("/lookup", async (req, res) => {
 
 router.get("/:appId/versions", async (req, res) => {
   const { appId } = req.params;
-  const { accountId } = req.query;
+  const { accountId, fresh } = req.query;
+
+  const cacheKey = `apps:versions:${appId}:${accountId || "default"}`;
+  if (fresh !== "true") {
+    const cached = apiCache.get(cacheKey);
+    if (cached) return res.json(cached);
+  }
 
   const accounts = getAccounts();
   const account =
@@ -187,6 +199,7 @@ router.get("/:appId/versions", async (req, res) => {
       createdDate: v.attributes.createdDate,
     }));
 
+    apiCache.set(cacheKey, versionsList);
     res.json(versionsList);
   } catch (err) {
     console.error(`Failed to fetch versions for app ${appId}:`, err.message);
@@ -209,6 +222,23 @@ router.post("/:appId/versions", async (req, res) => {
   }
 
   try {
+    const TERMINAL_STATES = new Set(["READY_FOR_SALE", "REMOVED_FROM_SALE", "DEVELOPER_REJECTED", "REJECTED"]);
+
+    const existingData = await ascFetch(
+      account,
+      `/v1/apps/${appId}/appStoreVersions?fields[appStoreVersions]=appStoreState`
+    );
+
+    const hasNonTerminal = existingData.data.some(
+      (v) => !TERMINAL_STATES.has(v.attributes.appStoreState)
+    );
+
+    if (hasNonTerminal) {
+      return res.status(409).json({
+        error: "Cannot create a new version while a non-released version exists",
+      });
+    }
+
     const data = await ascFetch(account, "/v1/appStoreVersions", {
       method: "POST",
       body: {
@@ -221,6 +251,9 @@ router.post("/:appId/versions", async (req, res) => {
         },
       },
     });
+
+    apiCache.delete("apps:list");
+    apiCache.deleteByPrefix(`apps:versions:${appId}:`);
 
     res.json({
       id: data.data.id,
@@ -261,6 +294,9 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
         },
       },
     });
+
+    apiCache.delete("apps:list");
+    apiCache.deleteByPrefix(`apps:versions:${appId}:`);
 
     res.json({ success: true, versionId });
   } catch (err) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchVersions, createVersion, submitForReview } from "../api/index.js";
+import { TERMINAL_STATES } from "../constants/index.js";
 import Badge from "./Badge.jsx";
 
 export default function VersionHistory({ appId, accountId }) {
@@ -120,7 +121,7 @@ export default function VersionHistory({ appId, accountId }) {
   return (
     <div className="space-y-3">
       {/* New Version Button / Form */}
-      {!showNewForm ? (
+      {versions.some((v) => !TERMINAL_STATES.has(v.appStoreState)) ? null : !showNewForm ? (
         <button
           onClick={() => { setShowNewForm(true); setCreateError(null); }}
           className="w-full px-4 py-2.5 rounded-[10px] text-[13px] font-semibold bg-accent/10 text-accent border border-accent/20 cursor-pointer font-sans hover:bg-accent/20 transition-colors"

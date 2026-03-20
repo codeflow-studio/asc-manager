@@ -12,4 +12,11 @@ export const STATUS_MAP = {
   REMOVED_FROM_SALE: { label: "Removed", color: "#8e8e93", bg: "rgba(142,142,147,0.12)" },
 };
 
+export const TERMINAL_STATES = new Set([
+  "READY_FOR_SALE",
+  "REMOVED_FROM_SALE",
+  "DEVELOPER_REJECTED",
+  "REJECTED",
+]);
+
 export const ACCT_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#a78bfa", "#ef4444", "#ec4899", "#14b8a6"];

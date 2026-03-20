@@ -34,10 +34,10 @@ export default function AppStoreManager() {
     }
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (fresh = false) => {
     try {
       setError(null);
-      const [accts, appsList] = await Promise.all([fetchAccounts(), fetchApps()]);
+      const [accts, appsList] = await Promise.all([fetchAccounts(), fetchApps({ fresh })]);
       setAccounts(accts);
       setApps(appsList);
 
@@ -101,7 +101,7 @@ export default function AppStoreManager() {
         search={search}
         setSearch={setSearch}
         syncing={syncing}
-        onSync={() => { setSyncing(true); loadData(); }}
+        onSync={() => { setSyncing(true); loadData(true); }}
         onShowAdd={() => setShowAdd(true)}
         filterStatus={filterStatus}
         setFilterStatus={setFilterStatus}
