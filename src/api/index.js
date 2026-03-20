@@ -36,6 +36,32 @@ export async function fetchVersions(appId, accountId) {
   return res.json();
 }
 
+export async function createVersion(appId, accountId, versionString, platform) {
+  const res = await fetch(`/api/apps/${appId}/versions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, versionString, platform }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to create version: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function submitForReview(appId, versionId, accountId) {
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to submit for review: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchAppLookup(bundleId) {
   const params = new URLSearchParams({ bundleId });
   const res = await fetch(`/api/apps/lookup?${params}`);

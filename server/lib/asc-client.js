@@ -1,14 +1,28 @@
 import { generateToken } from "./auth.js";
 
-export async function ascFetch(account, path) {
+export async function ascFetch(account, path, options = {}) {
   const token = generateToken(account);
   const url = `https://api.appstoreconnect.apple.com${path}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const headers = { Authorization: `Bearer ${token}` };
+  const fetchOptions = { headers };
+
+  if (options.method) fetchOptions.method = options.method;
+  if (options.body) {
+    headers["Content-Type"] = "application/json";
+    fetchOptions.body = JSON.stringify(options.body);
+  }
+
+  const res = await fetch(url, fetchOptions);
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`ASC API ${res.status}: ${body}`);
+    let detail = `ASC API ${res.status}: ${body}`;
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed.errors?.[0]?.detail) {
+        detail = parsed.errors[0].detail;
+      }
+    } catch {}
+    throw new Error(detail);
   }
   return res.json();
 }

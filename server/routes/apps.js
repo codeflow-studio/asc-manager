@@ -194,4 +194,79 @@ router.get("/:appId/versions", async (req, res) => {
   }
 });
 
+router.post("/:appId/versions", async (req, res) => {
+  const { appId } = req.params;
+  const { accountId, versionString, platform } = req.body;
+
+  if (!accountId || !versionString || !platform) {
+    return res.status(400).json({ error: "accountId, versionString, and platform are required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) {
+    return res.status(400).json({ error: "Account not found" });
+  }
+
+  try {
+    const data = await ascFetch(account, "/v1/appStoreVersions", {
+      method: "POST",
+      body: {
+        data: {
+          type: "appStoreVersions",
+          attributes: { versionString, platform },
+          relationships: {
+            app: { data: { type: "apps", id: appId } },
+          },
+        },
+      },
+    });
+
+    res.json({
+      id: data.data.id,
+      versionString: data.data.attributes.versionString,
+      appStoreState: data.data.attributes.appStoreState,
+      platform: data.data.attributes.platform,
+      createdDate: data.data.attributes.createdDate,
+    });
+  } catch (err) {
+    console.error(`Failed to create version for app ${appId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.post("/:appId/versions/:versionId/submit", async (req, res) => {
+  const { appId, versionId } = req.params;
+  const { accountId } = req.body;
+
+  if (!accountId) {
+    return res.status(400).json({ error: "accountId is required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) {
+    return res.status(400).json({ error: "Account not found" });
+  }
+
+  try {
+    await ascFetch(account, "/v1/appStoreVersionSubmissions", {
+      method: "POST",
+      body: {
+        data: {
+          type: "appStoreVersionSubmissions",
+          relationships: {
+            appStoreVersion: { data: { type: "appStoreVersions", id: versionId } },
+          },
+        },
+      },
+    });
+
+    res.json({ success: true, versionId });
+  } catch (err) {
+    console.error(`Failed to submit version ${versionId} for review:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 export default router;
