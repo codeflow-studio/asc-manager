@@ -15,7 +15,7 @@ function StarRating({ rating }) {
   return <span className="text-warning tracking-wider">{stars.join("")}</span>;
 }
 
-export default function AppDetailPage({ app, accounts, isMobile }) {
+export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion }) {
   const [lookupData, setLookupData] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(true);
   const [descExpanded, setDescExpanded] = useState(false);
@@ -169,7 +169,7 @@ export default function AppDetailPage({ app, accounts, isMobile }) {
         {/* Version History */}
         <div>
           <h2 className="text-[13px] font-bold text-dark-text uppercase tracking-wide mb-3">Version History</h2>
-          <VersionHistory appId={app.id} accountId={app.accountId} />
+          <VersionHistory appId={app.id} accountId={app.accountId} onSelectVersion={onSelectVersion} />
         </div>
       </div>
     </div>

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchVersions, createVersion, submitForReview } from "../api/index.js";
+import { fetchVersions, createVersion } from "../api/index.js";
 import { TERMINAL_STATES } from "../constants/index.js";
 import Badge from "./Badge.jsx";
 
-export default function VersionHistory({ appId, accountId }) {
+export default function VersionHistory({ appId, accountId, onSelectVersion }) {
   const [versions, setVersions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,9 +14,7 @@ export default function VersionHistory({ appId, accountId }) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
 
-  const [submittingId, setSubmittingId] = useState(null);
-  const [submitError, setSubmitError] = useState(null);
-  const [submitErrorId, setSubmitErrorId] = useState(null);
+
 
   const loadVersions = useCallback(async () => {
     try {
@@ -67,21 +65,6 @@ export default function VersionHistory({ appId, accountId }) {
       setCreateError(err.message);
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function handleSubmit(versionId) {
-    setSubmittingId(versionId);
-    setSubmitError(null);
-    setSubmitErrorId(null);
-    try {
-      await submitForReview(appId, versionId, accountId);
-      await loadVersions();
-    } catch (err) {
-      setSubmitError(err.message);
-      setSubmitErrorId(versionId);
-    } finally {
-      setSubmittingId(null);
     }
   }
 
@@ -184,35 +167,35 @@ export default function VersionHistory({ appId, accountId }) {
         </div>
       ) : (
         <div className="space-y-1.5">
-          {versions.map((v) => (
-            <div key={v.id} className="bg-dark-surface rounded-[10px] px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-[13px] font-semibold text-dark-text">
-                    Version {v.versionString}
+          {versions.map((v) => {
+            const isTerminal = TERMINAL_STATES.has(v.appStoreState);
+            const isClickable = !isTerminal && onSelectVersion;
+
+            return (
+              <div
+                key={v.id}
+                className={`bg-dark-surface rounded-[10px] px-4 py-3 ${isClickable ? "cursor-pointer hover:bg-dark-hover transition-colors" : ""}`}
+                onClick={isClickable ? () => onSelectVersion(v) : undefined}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold text-dark-text">
+                      Version {v.versionString}
+                    </div>
+                    <div className="text-[11px] text-dark-dim mt-0.5">
+                      {formatDate(v.createdDate)}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-dark-dim mt-0.5">
-                    {formatDate(v.createdDate)}
+                  <div className="flex items-center gap-2">
+                    <Badge status={v.appStoreState} version={v.versionString} platform={v.platform} />
+                    {isClickable && (
+                      <span className="text-dark-ghost text-sm leading-none">{"\u203A"}</span>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {v.appStoreState === "PREPARE_FOR_SUBMISSION" && (
-                    <button
-                      onClick={() => handleSubmit(v.id)}
-                      disabled={submittingId === v.id}
-                      className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-success/10 text-success border border-success/20 cursor-pointer font-sans hover:bg-success/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {submittingId === v.id ? "Submitting..." : "Submit for Review"}
-                    </button>
-                  )}
-                  <Badge status={v.appStoreState} version={v.versionString} platform={v.platform} />
                 </div>
               </div>
-              {submitError && submitErrorId === v.id && (
-                <div className="text-[11px] text-danger font-medium mt-2">{submitError}</div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

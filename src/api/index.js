@@ -63,6 +63,40 @@ export async function submitForReview(appId, versionId, accountId) {
   return res.json();
 }
 
+export async function fetchVersionDetail(appId, versionId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch version detail: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchVersionBuilds(appId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/builds?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch builds: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAttachedBuild(appId, versionId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/build?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch attached build: ${res.status}`);
+  return res.json();
+}
+
+export async function attachBuild(appId, versionId, buildId, accountId) {
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/build`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, buildId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to attach build: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchAppLookup(bundleId) {
   const params = new URLSearchParams({ bundleId });
   const res = await fetch(`/api/apps/lookup?${params}`);

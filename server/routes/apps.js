@@ -268,6 +268,162 @@ router.post("/:appId/versions", async (req, res) => {
   }
 });
 
+router.get("/:appId/versions/:versionId", async (req, res) => {
+  const { versionId } = req.params;
+  const { accountId } = req.query;
+
+  const cacheKey = `apps:version-detail:${versionId}:${accountId || "default"}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+
+  try {
+    const data = await ascFetch(
+      account,
+      `/v1/appStoreVersions/${versionId}?fields[appStoreVersions]=versionString,appStoreState,platform,createdDate,releaseType,earliestReleaseDate,downloadable`
+    );
+
+    const attrs = data.data.attributes;
+    const result = {
+      id: data.data.id,
+      versionString: attrs.versionString,
+      appStoreState: attrs.appStoreState,
+      platform: attrs.platform,
+      createdDate: attrs.createdDate,
+      releaseType: attrs.releaseType,
+      earliestReleaseDate: attrs.earliestReleaseDate,
+      downloadable: attrs.downloadable,
+    };
+
+    apiCache.set(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error(`Failed to fetch version detail ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.get("/:appId/builds", async (req, res) => {
+  const { appId } = req.params;
+  const { accountId } = req.query;
+
+  const cacheKey = `apps:builds:${appId}:${accountId || "default"}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+
+  try {
+    const data = await ascFetch(
+      account,
+      `/v1/apps/${appId}/builds?fields[builds]=version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType&limit=25`
+    );
+
+    const builds = data.data.map((b) => {
+      const attrs = b.attributes;
+      let iconUrl = null;
+      if (attrs.iconAssetToken?.templateUrl) {
+        iconUrl = attrs.iconAssetToken.templateUrl
+          .replace("{w}", "128")
+          .replace("{h}", "128")
+          .replace("{f}", "png");
+      }
+      return {
+        id: b.id,
+        version: attrs.version,
+        processingState: attrs.processingState,
+        uploadedDate: attrs.uploadedDate,
+        minOsVersion: attrs.minOsVersion,
+        buildAudienceType: attrs.buildAudienceType,
+        iconUrl,
+      };
+    });
+
+    apiCache.set(cacheKey, builds);
+    res.json(builds);
+  } catch (err) {
+    console.error(`Failed to fetch builds for app ${appId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.get("/:appId/versions/:versionId/build", async (req, res) => {
+  const { versionId } = req.params;
+  const { accountId } = req.query;
+
+  const cacheKey = `apps:version-build:${versionId}:${accountId || "default"}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+
+  try {
+    const data = await ascFetch(
+      account,
+      `/v1/appStoreVersions/${versionId}/build?fields[builds]=version,processingState,uploadedDate,minOsVersion`
+    );
+
+    const build = data.data
+      ? {
+          id: data.data.id,
+          version: data.data.attributes.version,
+          processingState: data.data.attributes.processingState,
+          uploadedDate: data.data.attributes.uploadedDate,
+          minOsVersion: data.data.attributes.minOsVersion,
+        }
+      : null;
+
+    const result = { build };
+    apiCache.set(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error(`Failed to fetch build for version ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.patch("/:appId/versions/:versionId/build", async (req, res) => {
+  const { versionId } = req.params;
+  const { accountId, buildId } = req.body;
+
+  if (!accountId || !buildId) {
+    return res.status(400).json({ error: "accountId and buildId are required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) {
+    return res.status(400).json({ error: "Account not found" });
+  }
+
+  try {
+    await ascFetch(account, `/v1/appStoreVersions/${versionId}`, {
+      method: "PATCH",
+      body: {
+        data: {
+          type: "appStoreVersions",
+          id: versionId,
+          relationships: {
+            build: { data: { type: "builds", id: buildId } },
+          },
+        },
+      },
+    });
+
+    apiCache.deleteByPrefix(`apps:version-build:${versionId}:`);
+    apiCache.deleteByPrefix(`apps:version-detail:${versionId}:`);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`Failed to attach build to version ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   const { appId, versionId } = req.params;
   const { accountId } = req.body;

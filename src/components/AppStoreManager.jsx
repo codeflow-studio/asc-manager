@@ -1,14 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { useIsMobile } from "../hooks/useIsMobile.js";
-import { fetchApps, fetchAccounts, createAccount } from "../api/index.js";
+import { fetchApps, fetchAccounts, createAccount, fetchVersions } from "../api/index.js";
 import TopBar from "./TopBar.jsx";
 import AppGrid from "./AppGrid.jsx";
 import AddAccountModal from "./AddAccountModal.jsx";
 import AppDetailPage from "./AppDetailPage.jsx";
+import VersionDetailPage from "./VersionDetailPage.jsx";
 
 function getAppIdFromPath() {
   const match = window.location.pathname.match(/^\/app\/(\d+)$/);
   return match ? match[1] : null;
+}
+
+function getVersionIdFromPath() {
+  const match = window.location.pathname.match(/^\/app\/([^/]+)\/version\/([^/]+)$/);
+  return match ? { appId: match[1], versionId: match[2] } : null;
 }
 
 export default function AppStoreManager() {
@@ -23,15 +29,26 @@ export default function AppStoreManager() {
   const [filterAccount, setFilterAccount] = useState("ALL");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
+  const [selectedVersion, setSelectedVersion] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
   const selectApp = useCallback((app) => {
     setSelectedApp(app);
+    setSelectedVersion(null);
     if (app) {
       window.history.pushState({ appId: app.id }, "", `/app/${app.id}`);
     } else {
       window.history.pushState(null, "", "/");
     }
+  }, []);
+
+  const selectVersion = useCallback((version, app) => {
+    setSelectedVersion({ version, app });
+    window.history.pushState(
+      { appId: app.id, versionId: version.id },
+      "",
+      `/app/${app.id}/version/${version.id}`
+    );
   }, []);
 
   const loadData = useCallback(async (fresh = false) => {
@@ -41,10 +58,25 @@ export default function AppStoreManager() {
       setAccounts(accts);
       setApps(appsList);
 
-      const pendingAppId = getAppIdFromPath();
-      if (pendingAppId) {
-        const match = appsList.find((a) => a.id === pendingAppId);
-        if (match) setSelectedApp(match);
+      const versionPath = getVersionIdFromPath();
+      if (versionPath) {
+        const appMatch = appsList.find((a) => a.id === versionPath.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          try {
+            const versions = await fetchVersions(appMatch.id, appMatch.accountId);
+            const vMatch = versions.find((v) => v.id === versionPath.versionId);
+            if (vMatch) setSelectedVersion({ version: vMatch, app: appMatch });
+          } catch {
+            // Version deep-link failed, stay on app detail
+          }
+        }
+      } else {
+        const pendingAppId = getAppIdFromPath();
+        if (pendingAppId) {
+          const match = appsList.find((a) => a.id === pendingAppId);
+          if (match) setSelectedApp(match);
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -61,6 +93,25 @@ export default function AppStoreManager() {
 
   useEffect(() => {
     function onPopState() {
+      const versionPath = getVersionIdFromPath();
+      if (versionPath) {
+        const appMatch = apps.find((a) => a.id === versionPath.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          fetchVersions(appMatch.id, appMatch.accountId)
+            .then((versions) => {
+              const vMatch = versions.find((v) => v.id === versionPath.versionId);
+              setSelectedVersion(vMatch ? { version: vMatch, app: appMatch } : null);
+            })
+            .catch(() => setSelectedVersion(null));
+        } else {
+          setSelectedApp(null);
+          setSelectedVersion(null);
+        }
+        return;
+      }
+
+      setSelectedVersion(null);
       const appId = getAppIdFromPath();
       if (appId) {
         const match = apps.find((a) => a.id === appId);
@@ -82,6 +133,19 @@ export default function AppStoreManager() {
 
   const uniqueStatuses = [...new Set(apps.map((a) => a.status))];
 
+  if (selectedVersion) {
+    return (
+      <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
+        <VersionDetailPage
+          app={selectedVersion.app}
+          version={selectedVersion.version}
+          accounts={accounts}
+          isMobile={isMobile}
+        />
+      </div>
+    );
+  }
+
   if (selectedApp) {
     return (
       <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
@@ -89,6 +153,7 @@ export default function AppStoreManager() {
           app={selectedApp}
           accounts={accounts}
           isMobile={isMobile}
+          onSelectVersion={(version) => selectVersion(version, selectedApp)}
         />
       </div>
     );
