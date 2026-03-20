@@ -1,11 +1,37 @@
 import { useState, useEffect, useCallback } from "react";
 import { useIsMobile } from "../hooks/useIsMobile.js";
 import { fetchApps, fetchAccounts, createAccount, fetchVersions } from "../api/index.js";
+import { STATUS_MAP } from "../constants/index.js";
 import TopBar from "./TopBar.jsx";
+import Sidebar from "./Sidebar.jsx";
 import AppGrid from "./AppGrid.jsx";
 import AddAccountModal from "./AddAccountModal.jsx";
 import AppDetailPage from "./AppDetailPage.jsx";
 import VersionDetailPage from "./VersionDetailPage.jsx";
+
+function buildGroups(apps, groupBy, accounts) {
+  if (groupBy === "none") return [{ key: "all", label: null, apps }];
+  if (groupBy === "status") {
+    const order = Object.keys(STATUS_MAP);
+    const byStatus = {};
+    apps.forEach((a) => { (byStatus[a.status] = byStatus[a.status] || []).push(a); });
+    return order.filter((s) => byStatus[s]).map((s) => ({
+      key: s, label: STATUS_MAP[s].label, color: STATUS_MAP[s].color, apps: byStatus[s],
+    }));
+  }
+  const knownNames = new Set(accounts.map((a) => a.name));
+  const groups = accounts
+    .map((acc) => ({
+      key: acc.id, label: acc.name, color: acc.color,
+      apps: apps.filter((a) => a.account === acc.name),
+    }))
+    .filter((g) => g.apps.length > 0);
+  const orphans = apps.filter((a) => !knownNames.has(a.account));
+  if (orphans.length > 0) {
+    groups.push({ key: "__unknown__", label: "Unknown Account", color: "#8e8e93", apps: orphans });
+  }
+  return groups;
+}
 
 function getAppIdFromPath() {
   const match = window.location.pathname.match(/^\/app\/(\d+)$/);
@@ -25,9 +51,15 @@ export default function AppStoreManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("ALL");
-  const [filterAccount, setFilterAccount] = useState("ALL");
+  const [filterStatusSet, setFilterStatusSet] = useState(new Set());
+  const [filterAccountSet, setFilterAccountSet] = useState(new Set());
+  const [groupBy, setGroupBy] = useState("account");
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [showAdd, setShowAdd] = useState(false);
+
+  useEffect(() => {
+    setSidebarOpen(!isMobile);
+  }, [isMobile]);
   const [selectedApp, setSelectedApp] = useState(null);
   const [selectedVersion, setSelectedVersion] = useState(null);
   const [syncing, setSyncing] = useState(false);
@@ -126,12 +158,15 @@ export default function AppStoreManager() {
 
   const filtered = apps.filter((a) => {
     if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.bundleId.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterStatus !== "ALL" && a.status !== filterStatus) return false;
-    if (filterAccount !== "ALL" && a.account !== filterAccount) return false;
+    if (filterStatusSet.size > 0 && !filterStatusSet.has(a.status)) return false;
+    if (filterAccountSet.size > 0 && !filterAccountSet.has(a.account)) return false;
     return true;
   });
 
-  const uniqueStatuses = [...new Set(apps.map((a) => a.status))];
+  const grouped = buildGroups(filtered, groupBy, accounts);
+
+  const toggleSidebar = () => setSidebarOpen((v) => !v);
+  const closeSidebarOnMobile = () => { if (isMobile) setSidebarOpen(false); };
 
   if (selectedVersion) {
     return (
@@ -160,50 +195,74 @@ export default function AppStoreManager() {
   }
 
   return (
-    <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
-      <TopBar
+    <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased flex">
+      <Sidebar
         isMobile={isMobile}
-        search={search}
-        setSearch={setSearch}
-        syncing={syncing}
-        onSync={() => { setSyncing(true); loadData(true); }}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        filterStatusSet={filterStatusSet}
+        setFilterStatusSet={setFilterStatusSet}
+        filterAccountSet={filterAccountSet}
+        setFilterAccountSet={setFilterAccountSet}
+        groupBy={groupBy}
+        setGroupBy={setGroupBy}
+        accounts={accounts}
+        apps={apps}
+        closeSidebarOnMobile={closeSidebarOnMobile}
         onShowAdd={() => setShowAdd(true)}
-        filterStatus={filterStatus}
-        setFilterStatus={setFilterStatus}
-        uniqueStatuses={uniqueStatuses}
       />
 
-      <div className={isMobile ? "px-3 pt-2 pb-8" : "px-7 pt-2 pb-12"}>
-        {loading && (
-          <div className="text-center px-5 py-20 text-dark-dim">
-            <div className="text-[28px] mb-3 inline-block" style={{ animation: "asc-spin 1s linear infinite" }}>
-              {"\u21bb"}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40"
+          style={{ zIndex: 50 }}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <div className="flex-1 min-w-0 flex flex-col">
+        <TopBar
+          isMobile={isMobile}
+          search={search}
+          setSearch={setSearch}
+          syncing={syncing}
+          onSync={() => { setSyncing(true); loadData(true); }}
+          onShowAdd={() => setShowAdd(true)}
+          onToggleSidebar={toggleSidebar}
+        />
+
+        <div className={isMobile ? "px-3 pt-2 pb-8" : "px-7 pt-2 pb-12"}>
+          {loading && (
+            <div className="text-center px-5 py-20 text-dark-dim">
+              <div className="text-[28px] mb-3 inline-block" style={{ animation: "asc-spin 1s linear infinite" }}>
+                {"\u21bb"}
+              </div>
+              <div className="text-sm font-semibold">Loading apps from App Store Connect...</div>
             </div>
-            <div className="text-sm font-semibold">Loading apps from App Store Connect...</div>
-          </div>
-        )}
+          )}
 
-        {error && !loading && (
-          <div className="text-center px-5 py-16 text-danger">
-            <div className="text-sm font-semibold mb-2">Failed to load data</div>
-            <div className="text-xs text-dark-dim max-w-[400px] mx-auto mb-4">{error}</div>
-            <button
-              onClick={() => { setLoading(true); loadData(); }}
-              className="px-[18px] py-2 rounded-lg text-xs font-semibold bg-accent text-white border-none cursor-pointer font-sans"
-            >
-              Retry
-            </button>
-          </div>
-        )}
+          {error && !loading && (
+            <div className="text-center px-5 py-16 text-danger">
+              <div className="text-sm font-semibold mb-2">Failed to load data</div>
+              <div className="text-xs text-dark-dim max-w-[400px] mx-auto mb-4">{error}</div>
+              <button
+                onClick={() => { setLoading(true); loadData(); }}
+                className="px-[18px] py-2 rounded-lg text-xs font-semibold bg-accent text-white border-none cursor-pointer font-sans"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
-        {!loading && !error && (
-          <AppGrid
-            filtered={filtered}
-            accounts={accounts}
-            onSelectApp={selectApp}
-            isMobile={isMobile}
-          />
-        )}
+          {!loading && !error && (
+            <AppGrid
+              grouped={grouped}
+              accounts={accounts}
+              onSelectApp={selectApp}
+              isMobile={isMobile}
+            />
+          )}
+        </div>
       </div>
 
       {showAdd && (

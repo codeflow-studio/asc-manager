@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { getStatus } from "../utils/index.js";
 
 export default function TopBar({
   isMobile,
@@ -8,9 +7,7 @@ export default function TopBar({
   syncing,
   onSync,
   onShowAdd,
-  filterStatus,
-  setFilterStatus,
-  uniqueStatuses,
+  onToggleSidebar,
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef(null);
@@ -27,8 +24,18 @@ export default function TopBar({
         isMobile ? "px-4 py-3 gap-3" : "px-7 py-4 gap-4"
       }`}
     >
-      {/* Left: Title + actions */}
+      {/* Left: Sidebar toggle + Title + actions */}
       <div className="flex items-center gap-2.5">
+        <button
+          onClick={onToggleSidebar}
+          className="bg-transparent border-none cursor-pointer p-1 flex items-center justify-center"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#86868b" strokeWidth="2" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
         <h1 className={`font-bold text-dark-text tracking-tight ${isMobile ? "text-xl" : "text-2xl"}`}>
           Apps
         </h1>
@@ -52,9 +59,8 @@ export default function TopBar({
         </button>
       </div>
 
-      {/* Right: Search + Status filter */}
+      {/* Right: Search */}
       <div className="flex items-center gap-3">
-        {/* Expandable search */}
         <div className="flex items-center">
           {searchOpen ? (
             <div className="flex items-center gap-2 border border-dark-border rounded-lg px-3 py-1.5 bg-dark-surface">
@@ -90,26 +96,6 @@ export default function TopBar({
               </svg>
             </button>
           )}
-        </div>
-
-        {/* Status filter dropdown */}
-        <div className="relative">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="text-sm text-dark-text bg-transparent border-none cursor-pointer font-sans appearance-none pr-5 py-1 outline-none font-medium"
-          >
-            <option value="ALL">All Statuses</option>
-            {uniqueStatuses.map((st) => (
-              <option key={st} value={st}>{getStatus(st).label}</option>
-            ))}
-          </select>
-          <svg
-            width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#86868b" strokeWidth="2.5"
-            className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none"
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
         </div>
       </div>
     </div>
