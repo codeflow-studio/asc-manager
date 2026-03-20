@@ -16,7 +16,17 @@ function readAccounts() {
     return [];
   }
   const raw = readFileSync(ACCOUNTS_FILE, "utf8");
-  return JSON.parse(raw);
+  try {
+    const accounts = JSON.parse(raw);
+    if (!Array.isArray(accounts)) {
+      console.warn("accounts.json does not contain an array, returning empty list");
+      return [];
+    }
+    return accounts;
+  } catch (err) {
+    console.warn("Failed to parse accounts.json:", err.message);
+    return [];
+  }
 }
 
 function writeAccounts(accounts) {
