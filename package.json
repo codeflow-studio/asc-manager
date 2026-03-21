@@ -1,8 +1,26 @@
 {
-  "name": "app-store-manager",
+  "name": "asc-manager",
   "private": true,
   "version": "1.0.0",
+  "description": "A web dashboard for managing multiple Apple App Store Connect accounts",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codeflow-studio/asc-manager.git"
+  },
+  "keywords": [
+    "app-store-connect",
+    "apple",
+    "ios",
+    "dashboard",
+    "xcode-cloud",
+    "in-app-purchases",
+    "subscriptions",
+    "react",
+    "express"
+  ],
+  "author": "Codeflow Studio",
+  "license": "MIT",
   "scripts": {
     "server": "node --watch server/index.js",
     "dev": "vite",
