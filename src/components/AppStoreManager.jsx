@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useIsMobile } from "../hooks/useIsMobile.js";
-import { fetchApps, fetchAccounts, createAccount, fetchVersions } from "../api/index.js";
+import { fetchApps, fetchAccounts, createAccount, fetchVersions, fetchCiBuildRuns } from "../api/index.js";
 import { STATUS_MAP } from "../constants/index.js";
 import TopBar from "./TopBar.jsx";
 import Sidebar from "./Sidebar.jsx";
@@ -9,6 +9,8 @@ import AddAccountModal from "./AddAccountModal.jsx";
 import AppDetailPage from "./AppDetailPage.jsx";
 import VersionDetailPage from "./VersionDetailPage.jsx";
 import ProductsPage from "./ProductsPage.jsx";
+import XcodeCloudPage from "./XcodeCloudPage.jsx";
+import BuildDetailPage from "./BuildDetailPage.jsx";
 
 function buildGroups(apps, groupBy, accounts) {
   if (groupBy === "none") return [{ key: "all", label: null, apps }];
@@ -40,6 +42,10 @@ function getRouteFromPath() {
   if (versionMatch) return { appId: versionMatch[1], versionId: versionMatch[2], subPage: null };
   const productsMatch = path.match(/^\/app\/([^/]+)\/products$/);
   if (productsMatch) return { appId: productsMatch[1], versionId: null, subPage: "products" };
+  const xcodeCloudBuildMatch = path.match(/^\/app\/([^/]+)\/xcode-cloud\/build\/([^/]+)$/);
+  if (xcodeCloudBuildMatch) return { appId: xcodeCloudBuildMatch[1], versionId: null, subPage: "xcode-cloud-build", buildId: xcodeCloudBuildMatch[2] };
+  const xcodeCloudMatch = path.match(/^\/app\/([^/]+)\/xcode-cloud$/);
+  if (xcodeCloudMatch) return { appId: xcodeCloudMatch[1], versionId: null, subPage: "xcode-cloud" };
   const appMatch = path.match(/^\/app\/([^/]+)$/);
   if (appMatch) return { appId: appMatch[1], versionId: null, subPage: null };
   return { appId: null, versionId: null, subPage: null };
@@ -95,6 +101,28 @@ export default function AppStoreManager() {
     window.history.pushState({ appId: app.id, subPage: "products" }, "", `/app/${app.id}/products`);
   }, []);
 
+  const navigateToXcodeCloud = useCallback((app) => {
+    setSelectedApp(app);
+    setSelectedVersion(null);
+    setSelectedBuildRun(null);
+    setCurrentView("xcode-cloud");
+    window.history.pushState({ appId: app.id, subPage: "xcode-cloud" }, "", `/app/${app.id}/xcode-cloud`);
+  }, []);
+
+  const [selectedBuildRun, setSelectedBuildRun] = useState(null);
+
+  const navigateToXcodeCloudBuild = useCallback((buildRun, app) => {
+    setSelectedApp(app);
+    setSelectedVersion(null);
+    setSelectedBuildRun(buildRun);
+    setCurrentView("xcode-cloud-build");
+    window.history.pushState(
+      { appId: app.id, buildId: buildRun.id, subPage: "xcode-cloud-build" },
+      "",
+      `/app/${app.id}/xcode-cloud/build/${buildRun.id}`
+    );
+  }, []);
+
   const loadData = useCallback(async (fresh = false) => {
     try {
       setError(null);
@@ -121,6 +149,25 @@ export default function AppStoreManager() {
         if (appMatch) {
           setSelectedApp(appMatch);
           setCurrentView("products");
+        }
+      } else if (route.subPage === "xcode-cloud-build") {
+        const appMatch = appsList.find((a) => a.id === route.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          setCurrentView("xcode-cloud-build");
+          try {
+            const buildsRes = await fetchCiBuildRuns(appMatch.id, appMatch.accountId);
+            const buildMatch = (buildsRes.data || []).find((b) => b.id === route.buildId);
+            if (buildMatch) setSelectedBuildRun(buildMatch);
+          } catch {
+            // Build deep-link resolution failed, page will show with available data
+          }
+        }
+      } else if (route.subPage === "xcode-cloud") {
+        const appMatch = appsList.find((a) => a.id === route.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          setCurrentView("xcode-cloud");
         }
       } else if (route.appId) {
         const match = appsList.find((a) => a.id === route.appId);
@@ -174,6 +221,33 @@ export default function AppStoreManager() {
         return;
       }
 
+      if (route.subPage === "xcode-cloud-build") {
+        const appMatch = apps.find((a) => a.id === route.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          setCurrentView("xcode-cloud-build");
+          fetchCiBuildRuns(appMatch.id, appMatch.accountId)
+            .then((res) => {
+              const buildMatch = (res.data || []).find((b) => b.id === route.buildId);
+              setSelectedBuildRun(buildMatch || null);
+            })
+            .catch(() => setSelectedBuildRun(null));
+        } else {
+          setSelectedApp(null);
+          setSelectedBuildRun(null);
+          setCurrentView(null);
+        }
+        return;
+      }
+
+      if (route.subPage === "xcode-cloud") {
+        const appMatch = apps.find((a) => a.id === route.appId);
+        setSelectedApp(appMatch || null);
+        setSelectedBuildRun(null);
+        setCurrentView(appMatch ? "xcode-cloud" : null);
+        return;
+      }
+
       if (route.appId) {
         const match = apps.find((a) => a.id === route.appId);
         setSelectedApp(match || null);
@@ -224,6 +298,32 @@ export default function AppStoreManager() {
     );
   }
 
+  if (currentView === "xcode-cloud-build" && selectedApp && selectedBuildRun) {
+    return (
+      <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
+        <BuildDetailPage
+          app={selectedApp}
+          buildRun={selectedBuildRun}
+          accounts={accounts}
+          isMobile={isMobile}
+        />
+      </div>
+    );
+  }
+
+  if (currentView === "xcode-cloud" && selectedApp) {
+    return (
+      <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
+        <XcodeCloudPage
+          app={selectedApp}
+          accounts={accounts}
+          isMobile={isMobile}
+          onSelectBuild={(buildRun) => navigateToXcodeCloudBuild(buildRun, selectedApp)}
+        />
+      </div>
+    );
+  }
+
   if (selectedApp) {
     return (
       <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
@@ -233,6 +333,7 @@ export default function AppStoreManager() {
           isMobile={isMobile}
           onSelectVersion={(version) => selectVersion(version, selectedApp)}
           onViewProducts={() => navigateToProducts(selectedApp)}
+          onViewXcodeCloud={() => navigateToXcodeCloud(selectedApp)}
         />
       </div>
     );

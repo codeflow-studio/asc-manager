@@ -328,3 +328,40 @@ export async function deleteSubscriptionLocalization(appId, groupId, subId, locI
   }
   return res.json();
 }
+
+// ── Xcode Cloud ─────────────────────────────────────────────────────────────
+
+export async function fetchBuildActions(appId, buildId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/builds/${buildId}/actions?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch build actions: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchActionLogs(appId, buildId, actionId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/builds/${buildId}/actions/${actionId}/logs?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch action logs: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchActionIssues(appId, buildId, actionId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/builds/${buildId}/actions/${actionId}/issues?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch action issues: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCiBuildRuns(appId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/builds?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch CI builds: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCiWorkflows(appId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/workflows?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch CI workflows: ${res.status}`);
+  return res.json();
+}

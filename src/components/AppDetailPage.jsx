@@ -15,7 +15,7 @@ function StarRating({ rating }) {
   return <span className="text-warning tracking-wider">{stars.join("")}</span>;
 }
 
-export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion, onViewProducts }) {
+export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion, onViewProducts, onViewXcodeCloud }) {
   const [lookupData, setLookupData] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(true);
   const [descExpanded, setDescExpanded] = useState(false);
@@ -69,28 +69,20 @@ export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion
             <h1 className="text-2xl font-bold text-dark-text m-0 leading-tight">{app.name}</h1>
             <div className="text-[13px] text-dark-dim font-mono mt-1">{app.bundleId}</div>
             <div className={`flex gap-2 mt-4 ${isMobile ? "flex-col" : ""}`}>
-              <a
-                href={`https://appstoreconnect.apple.com/apps/${app.id}/appstore`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-[12px] font-semibold bg-accent text-white border-none cursor-pointer font-sans no-underline"
-              >
-                Open in App Store Connect
-              </a>
-              <a
-                href={`https://appstoreconnect.apple.com/apps/${app.id}/testflight`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-[12px] font-semibold bg-dark-surface text-dark-label border border-dark-border-light cursor-pointer font-sans no-underline"
-              >
-                TestFlight
-              </a>
               {onViewProducts && (
                 <button
                   onClick={onViewProducts}
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-[12px] font-semibold bg-dark-surface text-dark-label border border-dark-border-light cursor-pointer font-sans"
                 >
                   Manage Products
+                </button>
+              )}
+              {onViewXcodeCloud && (
+                <button
+                  onClick={onViewXcodeCloud}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-[12px] font-semibold bg-dark-surface text-dark-label border border-dark-border-light cursor-pointer font-sans"
+                >
+                  Xcode Cloud
                 </button>
               )}
             </div>

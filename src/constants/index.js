@@ -38,6 +38,20 @@ export const IAP_TYPES = [
   { value: "NON_RENEWING_SUBSCRIPTION", label: "Non-Renewing Subscription" },
 ];
 
+export const CI_COMPLETION_STATUS_MAP = {
+  SUCCEEDED: { label: "Succeeded", color: "#34c759", bg: "rgba(52,199,89,0.12)" },
+  FAILED: { label: "Failed", color: "#ff3b30", bg: "rgba(255,59,48,0.12)" },
+  ERRORED: { label: "Errored", color: "#ff3b30", bg: "rgba(255,59,48,0.12)" },
+  CANCELED: { label: "Canceled", color: "#8e8e93", bg: "rgba(142,142,147,0.12)" },
+  SKIPPED: { label: "Skipped", color: "#8e8e93", bg: "rgba(142,142,147,0.12)" },
+};
+
+export const CI_PROGRESS_STATUS_MAP = {
+  PENDING: { label: "Pending", color: "#ff9500", bg: "rgba(255,149,0,0.12)" },
+  RUNNING: { label: "Running", color: "#007aff", bg: "rgba(0,122,255,0.12)" },
+  COMPLETE: { label: "Complete", color: "#34c759", bg: "rgba(52,199,89,0.12)" },
+};
+
 export const SUBSCRIPTION_PERIODS = [
   { value: "ONE_WEEK", label: "1 Week" },
   { value: "ONE_MONTH", label: "1 Month" },
