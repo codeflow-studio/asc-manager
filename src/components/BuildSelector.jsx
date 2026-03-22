@@ -1,4 +1,9 @@
-export default function BuildSelector({ builds, attachedBuild, loading, attaching, attachingBuildId, error, onAttach }) {
+import { useState } from "react";
+import BuildSelectorModal from "./BuildSelectorModal.jsx";
+
+export default function BuildSelector({ builds, attachedBuild, loading, attaching, attachingBuildId, error, onAttach, isMobile }) {
+  const [showModal, setShowModal] = useState(false);
+
   function formatDate(dateString) {
     if (!dateString) return "\u2014";
     const d = new Date(dateString);
@@ -25,6 +30,11 @@ export default function BuildSelector({ builds, attachedBuild, loading, attachin
     }
   }
 
+  async function handleAttachFromModal(buildId) {
+    await onAttach(buildId);
+    setShowModal(false);
+  }
+
   if (loading) {
     return (
       <div className="text-center py-8 text-dark-dim">
@@ -44,11 +54,9 @@ export default function BuildSelector({ builds, attachedBuild, loading, attachin
   }
 
   return (
-    <div className="space-y-3">
-      {/* Attached build card */}
-      {attachedBuild && (
+    <>
+      {attachedBuild ? (
         <div className="border border-success/30 bg-success/5 rounded-[10px] px-4 py-3">
-          <div className="text-[10px] text-success font-bold uppercase tracking-wide mb-2">Selected Build</div>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[13px] font-semibold text-dark-text font-mono">
@@ -65,68 +73,42 @@ export default function BuildSelector({ builds, attachedBuild, loading, attachin
                 )}
               </div>
             </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-accent/10 text-accent border border-accent/20 cursor-pointer font-sans hover:bg-accent/20 transition-colors shrink-0"
+            >
+              Change
+            </button>
           </div>
         </div>
-      )}
-
-      {/* Build list */}
-      {builds.length === 0 ? (
-        <div className="text-center py-8 text-dark-ghost">
-          <div className="text-xs font-semibold">No builds available</div>
-          <div className="text-[11px] text-dark-dim mt-1">Upload a build via Xcode or Transporter</div>
-        </div>
       ) : (
-        <div className="space-y-1.5">
-          {builds.map((b) => {
-            const isAttached = attachedBuild?.id === b.id;
-            const isAttaching = attaching && attachingBuildId === b.id;
-            const canSelect = b.processingState === "VALID" && !isAttached;
-
-            return (
-              <div key={b.id} className="bg-dark-surface rounded-[10px] px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-dark-text font-mono">
-                      Build {b.version}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="flex items-center gap-1 text-[11px]">
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: stateColor(b.processingState) }} />
-                        <span style={{ color: stateColor(b.processingState) }}>{stateLabel(b.processingState)}</span>
-                      </span>
-                      <span className="text-[11px] text-dark-dim">{formatDate(b.uploadedDate)}</span>
-                      {b.minOsVersion && (
-                        <span className="text-[11px] text-dark-dim">Min OS {b.minOsVersion}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="shrink-0">
-                    {isAttached ? (
-                      <span className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-success bg-success/10 border border-success/20">
-                        Selected
-                      </span>
-                    ) : canSelect ? (
-                      <button
-                        onClick={() => onAttach(b.id)}
-                        disabled={attaching}
-                        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-accent/10 text-accent border border-accent/20 cursor-pointer font-sans hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isAttaching ? (
-                          <span className="inline-block" style={{ animation: "asc-spin 1s linear infinite" }}>{"\u21bb"}</span>
-                        ) : "Select"}
-                      </button>
-                    ) : (
-                      <span className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-dark-ghost bg-dark-hover">
-                        {stateLabel(b.processingState)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="bg-dark-surface rounded-[10px] px-4 py-3 flex items-center justify-between">
+          <div>
+            <div className="text-[13px] text-dark-dim font-medium">No build selected</div>
+            <div className="text-[11px] text-dark-ghost mt-0.5">Select a build to attach to this version</div>
+          </div>
+          {builds.length > 0 && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-accent/10 text-accent border border-accent/20 cursor-pointer font-sans hover:bg-accent/20 transition-colors shrink-0"
+            >
+              Select Build
+            </button>
+          )}
         </div>
       )}
-    </div>
+
+      {showModal && (
+        <BuildSelectorModal
+          builds={builds}
+          attachedBuild={attachedBuild}
+          attaching={attaching}
+          attachingBuildId={attachingBuildId}
+          onAttach={handleAttachFromModal}
+          onClose={() => setShowModal(false)}
+          isMobile={isMobile}
+        />
+      )}
+    </>
   );
 }

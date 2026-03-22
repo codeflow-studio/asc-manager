@@ -168,6 +168,7 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
             attachingBuildId={attachingBuildId}
             error={buildsError}
             onAttach={handleAttachBuild}
+            isMobile={isMobile}
           />
         </div>
 
