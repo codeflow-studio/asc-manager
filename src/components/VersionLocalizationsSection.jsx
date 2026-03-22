@@ -1,270 +1,438 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   fetchVersionLocalizations,
   createVersionLocalization,
   updateVersionLocalization,
   deleteVersionLocalization,
 } from "../api/index.js";
-
-const labelCls = "text-[11px] uppercase tracking-wide font-semibold text-dark-dim mb-1.5 block";
-const inputCls = "w-full px-3.5 py-2.5 bg-dark-surface border border-dark-border-light rounded-lg text-dark-text outline-none font-sans text-[13px] transition-colors";
+import { LOCALE_DISPLAY_NAMES } from "../constants/index.js";
 
 const FIELDS = [
-  { key: "description", label: "Description", type: "textarea", height: "h-[100px]" },
-  { key: "whatsNew", label: "What's New", type: "textarea", height: "h-[80px]" },
-  { key: "keywords", label: "Keywords", type: "input" },
-  { key: "promotionalText", label: "Promotional Text", type: "textarea", height: "h-[60px]" },
+  { key: "promotionalText", label: "Promotional Text", type: "textarea", rows: 3, limit: 170 },
+  { key: "description", label: "Description", type: "textarea", rows: 6, limit: 4000 },
+  { key: "whatsNew", label: "What's New in This Version", type: "textarea", rows: 4, limit: 4000 },
+  { key: "keywords", label: "Keywords", type: "input", limit: 100 },
   { key: "supportUrl", label: "Support URL", type: "input" },
   { key: "marketingUrl", label: "Marketing URL", type: "input" },
 ];
 
+const labelCls = "text-[11px] uppercase tracking-wide font-semibold text-dark-dim mb-1.5 block";
+const inputCls = "w-full px-3.5 py-2.5 bg-dark-surface border border-dark-border-light rounded-lg text-dark-text outline-none font-sans text-[13px] transition-colors focus:border-accent";
+
 function emptyFields() {
-  return { description: "", whatsNew: "", keywords: "", promotionalText: "", supportUrl: "", marketingUrl: "" };
+  return { promotionalText: "", description: "", whatsNew: "", keywords: "", supportUrl: "", marketingUrl: "" };
+}
+
+function fieldsFromLoc(loc) {
+  return {
+    promotionalText: loc.promotionalText || "",
+    description: loc.description || "",
+    whatsNew: loc.whatsNew || "",
+    keywords: loc.keywords || "",
+    supportUrl: loc.supportUrl || "",
+    marketingUrl: loc.marketingUrl || "",
+  };
+}
+
+function localeName(code) {
+  return LOCALE_DISPLAY_NAMES[code] || code;
 }
 
 export default function VersionLocalizationsSection({ appId, versionId, accountId, isMobile }) {
-  const [expanded, setExpanded] = useState(false);
   const [locs, setLocs] = useState([]);
-  const [locsLoading, setLocsLoading] = useState(false);
-  const [locsError, setLocsError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [editingLocId, setEditingLocId] = useState(null);
-  const [editFields, setEditFields] = useState(emptyFields());
-  const [savingLocId, setSavingLocId] = useState(null);
-  const [deletingLocId, setDeletingLocId] = useState(null);
+  const [selectedLocId, setSelectedLocId] = useState(null);
+  const [draftMap, setDraftMap] = useState({});
+
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
-  const [newLocale, setNewLocale] = useState("");
-  const [newFields, setNewFields] = useState(emptyFields());
-  const [addingLoc, setAddingLoc] = useState(false);
+  const [addingNewLocale, setAddingNewLocale] = useState(false);
+  const [newLocaleCode, setNewLocaleCode] = useState("");
+  const [creatingLocale, setCreatingLocale] = useState(false);
+
+  const selectedLoc = useMemo(
+    () => locs.find((l) => l.id === selectedLocId) || null,
+    [locs, selectedLocId]
+  );
+
+  const formFields = useMemo(() => {
+    if (selectedLocId && draftMap[selectedLocId]) return draftMap[selectedLocId];
+    if (selectedLoc) return fieldsFromLoc(selectedLoc);
+    return emptyFields();
+  }, [draftMap, selectedLocId, selectedLoc]);
+
+  const selectedIndex = useMemo(
+    () => locs.findIndex((l) => l.id === selectedLocId),
+    [locs, selectedLocId]
+  );
+
+  const hasPrev = selectedIndex > 0;
+  const hasNext = selectedIndex >= 0 && selectedIndex < locs.length - 1;
+
+  function goToPrev() {
+    if (hasPrev) selectLocale(locs[selectedIndex - 1].id);
+  }
+
+  function goToNext() {
+    if (hasNext) selectLocale(locs[selectedIndex + 1].id);
+  }
+
+  function updateField(key, value) {
+    setDraftMap((prev) => ({
+      ...prev,
+      [selectedLocId]: {
+        ...(prev[selectedLocId] || fieldsFromLoc(selectedLoc)),
+        [key]: value,
+      },
+    }));
+  }
+
+  const anyDirty = useMemo(() => {
+    for (const locId of Object.keys(draftMap)) {
+      const loc = locs.find((l) => l.id === locId);
+      if (!loc) continue;
+      const stored = fieldsFromLoc(loc);
+      const draft = draftMap[locId];
+      if (FIELDS.some((f) => (draft[f.key] || "") !== (stored[f.key] || ""))) return true;
+    }
+    return false;
+  }, [draftMap, locs]);
 
   useEffect(() => {
-    if (!expanded) return;
     let cancelled = false;
-    setLocsLoading(true);
-    setLocsError(null);
+    setLoading(true);
+    setError(null);
 
     fetchVersionLocalizations(appId, versionId, accountId)
-      .then((data) => { if (!cancelled) setLocs(data); })
-      .catch((err) => { if (!cancelled) setLocsError(err.message); })
-      .finally(() => { if (!cancelled) setLocsLoading(false); });
+      .then((data) => {
+        if (cancelled) return;
+        const sorted = [...data].sort((a, b) => {
+          if (a.locale === "en-US") return -1;
+          if (b.locale === "en-US") return 1;
+          return 0;
+        });
+        setLocs(sorted);
+        if (sorted.length > 0) {
+          setSelectedLocId(sorted[0].id);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     return () => { cancelled = true; };
-  }, [expanded, appId, versionId, accountId]);
+  }, [appId, versionId, accountId]);
 
-  function startEdit(loc) {
-    setEditingLocId(loc.id);
+  function selectLocale(locId) {
+    if (!locs.find((l) => l.id === locId)) return;
+    setSelectedLocId(locId);
     setSaveError(null);
-    setEditFields({
-      description: loc.description || "",
-      whatsNew: loc.whatsNew || "",
-      keywords: loc.keywords || "",
-      promotionalText: loc.promotionalText || "",
-      supportUrl: loc.supportUrl || "",
-      marketingUrl: loc.marketingUrl || "",
-    });
+    setAddingNewLocale(false);
   }
 
-  function cancelEdit() {
-    setEditingLocId(null);
+  function handleDiscard() {
+    setDraftMap({});
     setSaveError(null);
   }
 
-  async function handleSave(loc) {
-    setSavingLocId(loc.id);
+  async function handleSave() {
+    if (!anyDirty) return;
+    setSaving(true);
     setSaveError(null);
     try {
-      const updated = await updateVersionLocalization(appId, versionId, loc.id, { accountId, ...editFields });
-      setLocs((prev) => prev.map((l) => (l.id === loc.id ? updated : l)));
-      setEditingLocId(null);
+      const dirtyEntries = Object.entries(draftMap).filter(([locId]) => {
+        const loc = locs.find((l) => l.id === locId);
+        if (!loc) return false;
+        const stored = fieldsFromLoc(loc);
+        return FIELDS.some((f) => (draftMap[locId][f.key] || "") !== (stored[f.key] || ""));
+      });
+      const results = await Promise.all(
+        dirtyEntries.map(([locId, fields]) =>
+          updateVersionLocalization(appId, versionId, locId, { accountId, ...fields })
+        )
+      );
+      setLocs((prev) =>
+        prev.map((l) => {
+          const updated = results.find((r) => r.id === l.id);
+          return updated || l;
+        })
+      );
+      setDraftMap({});
     } catch (err) {
       setSaveError(err.message);
     } finally {
-      setSavingLocId(null);
+      setSaving(false);
     }
   }
 
-  async function handleDelete(loc) {
-    setDeletingLocId(loc.id);
+  async function handleDelete() {
+    if (!selectedLoc) return;
+    const deletedId = selectedLoc.id;
+    setDeleting(true);
     setSaveError(null);
     try {
-      await deleteVersionLocalization(appId, versionId, loc.id, accountId);
-      setLocs((prev) => prev.filter((l) => l.id !== loc.id));
-      if (editingLocId === loc.id) setEditingLocId(null);
+      await deleteVersionLocalization(appId, versionId, deletedId, accountId);
+      const remaining = locs.filter((l) => l.id !== deletedId);
+      setLocs(remaining);
+      setDraftMap((prev) => {
+        const next = { ...prev };
+        delete next[deletedId];
+        return next;
+      });
+      if (remaining.length > 0) {
+        setSelectedLocId(remaining[0].id);
+      } else {
+        setSelectedLocId(null);
+      }
     } catch (err) {
       setSaveError(err.message);
     } finally {
-      setDeletingLocId(null);
+      setDeleting(false);
     }
   }
 
-  async function handleAdd() {
-    if (!newLocale.trim()) return;
-    setAddingLoc(true);
+  function handleDropdownChange(e) {
+    const value = e.target.value;
+    if (value === "__add__") {
+      setAddingNewLocale(true);
+      setNewLocaleCode("");
+    } else {
+      selectLocale(value);
+    }
+  }
+
+  async function handleCreateLocale() {
+    const code = newLocaleCode.trim();
+    if (!code) return;
+    setCreatingLocale(true);
     setSaveError(null);
     try {
       const created = await createVersionLocalization(appId, versionId, {
         accountId,
-        locale: newLocale.trim(),
-        ...newFields,
+        locale: code,
+        ...emptyFields(),
       });
       setLocs((prev) => [...prev, created]);
-      setNewLocale("");
-      setNewFields(emptyFields());
+      setSelectedLocId(created.id);
+      setAddingNewLocale(false);
+      setNewLocaleCode("");
     } catch (err) {
       setSaveError(err.message);
     } finally {
-      setAddingLoc(false);
+      setCreatingLocale(false);
     }
   }
 
-  function renderFieldInputs(fields, setFields, prefix) {
+  function cancelAddLocale() {
+    setAddingNewLocale(false);
+    setNewLocaleCode("");
+  }
+
+  if (loading) {
     return (
-      <div className="space-y-3">
-        {FIELDS.map((f) => (
-          <div key={f.key}>
-            <label className={labelCls}>{f.label}</label>
-            {f.type === "textarea" ? (
-              <textarea
-                className={`${inputCls} ${f.height} resize-y`}
-                value={fields[f.key]}
-                onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                placeholder={f.label}
-              />
-            ) : (
-              <input
-                className={inputCls}
-                value={fields[f.key]}
-                onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                placeholder={f.label}
-              />
-            )}
-          </div>
-        ))}
+      <div className="mt-8">
+        <div className="text-[13px] font-bold text-dark-text uppercase tracking-wide mb-4">Localizable Information</div>
+        <div className="text-center py-8 text-dark-dim">
+          <div className="text-lg inline-block" style={{ animation: "asc-spin 1s linear infinite" }}>{"\u21bb"}</div>
+          <div className="text-xs font-semibold mt-1">Loading localizations...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mt-8">
+        <div className="text-[13px] font-bold text-dark-text uppercase tracking-wide mb-4">Localizable Information</div>
+        <div className="text-center py-6">
+          <div className="text-xs text-danger font-semibold mb-1">Failed to load localizations</div>
+          <div className="text-[11px] text-dark-dim">{error}</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="mt-8">
-      <div className="flex items-center justify-between mb-2">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-2 bg-transparent border-none cursor-pointer px-0 font-sans"
-        >
-          <span className="text-dark-dim text-xs transition-transform" style={{ display: "inline-block", transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}>
-            {"\u25BE"}
-          </span>
-          <span className="text-[13px] font-bold text-dark-text uppercase tracking-wide">Localizations</span>
-          {expanded && !locsLoading && (
-            <span className="text-[11px] text-dark-dim font-semibold bg-dark-hover px-1.5 py-0.5 rounded">{locs.length}</span>
-          )}
-        </button>
-      </div>
-
-      {expanded && (
-        <>
-          {locsLoading ? (
-            <div className="text-center py-8 text-dark-dim">
-              <div className="text-lg inline-block" style={{ animation: "asc-spin 1s linear infinite" }}>{"\u21bb"}</div>
-              <div className="text-xs font-semibold mt-1">Loading localizations...</div>
-            </div>
-          ) : locsError ? (
-            <div className="text-center py-6">
-              <div className="text-xs text-danger font-semibold mb-1">Failed to load localizations</div>
-              <div className="text-[11px] text-dark-dim">{locsError}</div>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="text-[13px] font-bold text-dark-text uppercase tracking-wide">Localizable Information</div>
+        <div className="flex items-center gap-2">
+          {addingNewLocale ? (
+            <div className="flex items-center gap-2">
+              <input
+                className="px-2.5 py-1.5 bg-dark-surface border border-dark-border-light rounded-lg text-dark-text text-[12px] font-sans outline-none w-28 focus:border-accent"
+                value={newLocaleCode}
+                onChange={(e) => setNewLocaleCode(e.target.value)}
+                placeholder="e.g. de-DE"
+                onKeyDown={(e) => e.key === "Enter" && handleCreateLocale()}
+                aria-label="New locale code"
+              />
+              <button
+                onClick={handleCreateLocale}
+                disabled={!newLocaleCode.trim() || creatingLocale}
+                className="text-[11px] font-semibold text-white bg-accent px-3 py-1.5 rounded-lg border-none cursor-pointer font-sans disabled:opacity-50 hover:opacity-90 transition-opacity"
+              >
+                {creatingLocale ? "Adding..." : "Add"}
+              </button>
+              <button
+                onClick={cancelAddLocale}
+                className="text-[11px] font-semibold text-dark-dim bg-transparent border-none cursor-pointer font-sans hover:text-dark-text transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           ) : (
-            <>
-              {saveError && (
-                <div className="text-[11px] text-danger font-medium mb-3">{saveError}</div>
-              )}
-
-              {locs.length === 0 ? (
-                <div className="text-center py-6 text-dark-ghost">
-                  <div className="text-xs font-semibold">No localizations yet</div>
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {locs.map((loc) => (
-                    <div key={loc.id} className="bg-dark-surface rounded-[10px] px-4 py-3">
-                      {editingLocId === loc.id ? (
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-[11px] font-bold text-accent-light bg-accent-bg px-2 py-0.5 rounded">{loc.locale}</span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleSave(loc)}
-                                disabled={savingLocId === loc.id}
-                                className="text-[11px] font-semibold text-accent bg-transparent border-none cursor-pointer font-sans px-0 hover:underline disabled:opacity-50"
-                              >
-                                {savingLocId === loc.id ? "Saving..." : "Save"}
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                className="text-[11px] font-semibold text-dark-dim bg-transparent border-none cursor-pointer font-sans px-0 hover:underline"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                          {renderFieldInputs(editFields, setEditFields, "edit")}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-[11px] font-bold text-accent-light bg-accent-bg px-2 py-0.5 rounded">{loc.locale}</span>
-                            </div>
-                            {loc.description && (
-                              <div className="text-[12px] text-dark-dim mt-1 truncate">{loc.description}</div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <button
-                              onClick={() => startEdit(loc)}
-                              className="text-[11px] font-semibold text-accent bg-transparent border-none cursor-pointer font-sans px-0 hover:underline"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(loc)}
-                              disabled={deletingLocId === loc.id}
-                              className="text-[11px] font-semibold text-dark-dim bg-transparent border-none cursor-pointer font-sans px-0 hover:text-danger disabled:opacity-50"
-                            >
-                              {deletingLocId === loc.id ? "Deleting..." : "Delete"}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add new locale */}
-              <div className="mt-4 bg-dark-surface rounded-[10px] px-4 py-3">
-                <div className="text-[11px] font-bold text-dark-text uppercase tracking-wide mb-3">Add Locale</div>
-                <div className="mb-3">
-                  <label className={labelCls}>Locale Code</label>
-                  <input
-                    className={inputCls}
-                    value={newLocale}
-                    onChange={(e) => setNewLocale(e.target.value)}
-                    placeholder="e.g. en-US, ja, de"
-                  />
-                </div>
-                {renderFieldInputs(newFields, setNewFields, "new")}
-                <button
-                  onClick={handleAdd}
-                  disabled={!newLocale.trim() || addingLoc}
-                  className="mt-3 text-[12px] font-semibold text-white bg-accent px-4 py-2 rounded-lg border-none cursor-pointer font-sans disabled:opacity-50 hover:opacity-90 transition-opacity"
-                >
-                  {addingLoc ? "Adding..." : "Add Localization"}
-                </button>
-              </div>
-            </>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={goToPrev}
+                disabled={!hasPrev}
+                className="w-7 h-7 flex items-center justify-center bg-dark-surface border border-dark-border-light rounded-lg text-dark-text text-[13px] cursor-pointer font-sans disabled:opacity-30 disabled:cursor-default hover:enabled:bg-dark-hover transition-colors"
+                aria-label="Previous locale"
+              >
+                {"\u2039"}
+              </button>
+              <select
+                value={selectedLocId || ""}
+                onChange={handleDropdownChange}
+                className="px-3 py-1.5 bg-dark-surface border border-dark-border-light rounded-lg text-dark-text text-[12px] font-sans outline-none cursor-pointer min-w-[180px]"
+                aria-label="Select locale"
+              >
+                {locs.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {localeName(loc.locale)} ({loc.locale})
+                  </option>
+                ))}
+                <option value="__add__">Add Locale...</option>
+              </select>
+              <button
+                onClick={goToNext}
+                disabled={!hasNext}
+                className="w-7 h-7 flex items-center justify-center bg-dark-surface border border-dark-border-light rounded-lg text-dark-text text-[13px] cursor-pointer font-sans disabled:opacity-30 disabled:cursor-default hover:enabled:bg-dark-hover transition-colors"
+                aria-label="Next locale"
+              >
+                {"\u203a"}
+              </button>
+            </div>
           )}
+        </div>
+      </div>
+
+      {saveError && (
+        <div className="text-[11px] text-danger font-medium mb-3">{saveError}</div>
+      )}
+
+      {locs.length === 0 && !addingNewLocale ? (
+        <div className="text-center py-6 text-dark-ghost">
+          <div className="text-xs font-semibold">No localizations yet</div>
+          <div className="text-[11px] text-dark-dim mt-1">Select "Add Locale..." from the dropdown to create one.</div>
+        </div>
+      ) : selectedLoc && (
+        <>
+          {/* Fields */}
+          <div className="space-y-4">
+            {FIELDS.map((f) => {
+              const val = formFields[f.key] || "";
+              const remaining = f.limit ? f.limit - val.length : null;
+              const isUrlRow = f.key === "supportUrl";
+
+              if (isUrlRow) {
+                const marketingField = FIELDS.find((ff) => ff.key === "marketingUrl");
+                const marketingVal = formFields.marketingUrl || "";
+                return (
+                  <div key="url-row" className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+                    <div>
+                      <label className={labelCls}>{f.label}</label>
+                      <input
+                        className={inputCls}
+                        value={val}
+                        onChange={(e) => updateField(f.key, e.target.value)}
+                        placeholder={f.label}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>{marketingField.label}</label>
+                      <input
+                        className={inputCls}
+                        value={marketingVal}
+                        onChange={(e) => updateField("marketingUrl", e.target.value)}
+                        placeholder={marketingField.label}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
+              if (f.key === "marketingUrl") return null;
+
+              return (
+                <div key={f.key}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] uppercase tracking-wide font-semibold text-dark-dim">{f.label}</label>
+                    {remaining !== null && (
+                      <span className={`text-[11px] font-medium ${remaining < 0 ? "text-danger" : "text-dark-dim"}`}>
+                        {remaining.toLocaleString()} remaining
+                      </span>
+                    )}
+                  </div>
+                  {f.type === "textarea" ? (
+                    <textarea
+                      className={`${inputCls} resize-y`}
+                      rows={f.rows}
+                      maxLength={f.limit}
+                      value={val}
+                      onChange={(e) => updateField(f.key, e.target.value)}
+                      placeholder={f.label}
+                    />
+                  ) : (
+                    <input
+                      className={inputCls}
+                      maxLength={f.limit}
+                      value={val}
+                      onChange={(e) => updateField(f.key, e.target.value)}
+                      placeholder={f.label}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Action buttons */}
+          <div className={`flex items-center mt-6 pt-4 border-t border-dark-border-light ${locs.length >= 2 ? "justify-between" : "justify-end"}`}>
+            {locs.length >= 2 && (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="text-[12px] font-semibold text-danger bg-transparent border border-danger/30 px-4 py-2 rounded-lg cursor-pointer font-sans hover:bg-danger/10 transition-colors disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Locale"}
+              </button>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDiscard}
+                disabled={!anyDirty}
+                className="text-[12px] font-semibold text-dark-dim bg-dark-surface border border-dark-border-light px-4 py-2 rounded-lg cursor-pointer font-sans hover:text-dark-text transition-colors disabled:opacity-50"
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!anyDirty || saving}
+                className="text-[12px] font-semibold text-white bg-accent px-4 py-2 rounded-lg border-none cursor-pointer font-sans disabled:opacity-50 hover:opacity-90 transition-opacity"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
         </>
       )}
     </div>
