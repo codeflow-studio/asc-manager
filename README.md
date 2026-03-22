@@ -1,10 +1,24 @@
+<div align="center">
+
 # ASC Manager
 
-A web dashboard for managing multiple Apple App Store Connect accounts. View apps, versions, in-app purchases, subscriptions, and Xcode Cloud builds -- all from a single interface.
+**A web dashboard for managing multiple Apple App Store Connect accounts.**
+
+View apps, versions, in-app purchases, subscriptions, and Xcode Cloud builds -- all from a single interface.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-18%2B-brightgreen.svg)](https://nodejs.org)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![GitHub issues](https://img.shields.io/github/issues/codeflow-studio/asc-manager)](https://github.com/codeflow-studio/asc-manager/issues)
+[![GitHub stars](https://img.shields.io/github/stars/codeflow-studio/asc-manager?style=social)](https://github.com/codeflow-studio/asc-manager)
 
 Built with React 18, Express 5, and the App Store Connect API v2.
 
-![License](https://img.shields.io/badge/license-MIT-blue)
+[Getting Started](#getting-started) · [Features](#features) · [Contributing](CONTRIBUTING.md) · [Report Bug](https://github.com/codeflow-studio/asc-manager/issues/new?template=bug_report.md) · [Request Feature](https://github.com/codeflow-studio/asc-manager/issues/new?template=feature_request.md)
+
+</div>
+
+---
 
 ## Features
 
@@ -99,6 +113,39 @@ src/
 - `.p8` files are gitignored by default
 - JWTs are generated server-side and cached until 2 minutes before expiry
 
+## Roadmap
+
+See the [open issues](https://github.com/codeflow-studio/asc-manager/issues) for a list of proposed features and known issues.
+
+## Contributing
+
+Contributions are what make the open source community amazing. Any contributions you make are **greatly appreciated**.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
 ## License
 
-MIT
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+
+## Acknowledgments
+
+- [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi) by Apple
+- [React](https://react.dev)
+- [Tailwind CSS](https://tailwindcss.com)
+- [Express](https://expressjs.com)
+
+---
+
+<div align="center">
+
+If you find ASC Manager useful, please consider giving it a star on GitHub!
+
+[![Star on GitHub](https://img.shields.io/github/stars/codeflow-studio/asc-manager?style=social)](https://github.com/codeflow-studio/asc-manager)
+
+</div>
