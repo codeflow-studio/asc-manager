@@ -19,6 +19,16 @@ export const TERMINAL_STATES = new Set([
   "REJECTED",
 ]);
 
+export const RELEASE_TYPES = [
+  { value: "MANUAL", label: "Manually release this version" },
+  { value: "AFTER_APPROVAL", label: "Automatically release this version" },
+  { value: "SCHEDULED", label: "Automatically release this version after App Review, no earlier than" },
+];
+
+export const PHASED_RELEASE_DAY_PERCENTAGES = {
+  1: "1%", 2: "2%", 3: "5%", 4: "10%", 5: "20%", 6: "50%", 7: "100%",
+};
+
 export const ACCT_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#a78bfa", "#ef4444", "#ec4899", "#14b8a6"];
 
 export const IAP_STATUS_MAP = {

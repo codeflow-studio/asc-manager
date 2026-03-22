@@ -1,7 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { fetchVersionDetail, fetchVersionBuilds, fetchAttachedBuild, attachBuild } from "../api/index.js";
+import { TERMINAL_STATES } from "../constants/index.js";
 import Badge from "./Badge.jsx";
 import BuildSelector from "./BuildSelector.jsx";
+import VersionReleaseSection from "./VersionReleaseSection.jsx";
+import PhasedReleaseSection from "./PhasedReleaseSection.jsx";
+import RatingResetSection from "./RatingResetSection.jsx";
 import VersionLocalizationsSection from "./VersionLocalizationsSection.jsx";
 
 export default function VersionDetailPage({ app, version, accounts, isMobile }) {
@@ -17,6 +21,15 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
   const [attaching, setAttaching] = useState(false);
   const [attachingBuildId, setAttachingBuildId] = useState(null);
   const [attachError, setAttachError] = useState(null);
+
+  const refreshDetail = useCallback(async () => {
+    try {
+      const data = await fetchVersionDetail(app.id, version.id, app.accountId);
+      setDetail(data);
+    } catch (err) {
+      setDetailError(err.message);
+    }
+  }, [app.id, version.id, app.accountId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,6 +192,36 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
           accountId={app.accountId}
           isMobile={isMobile}
         />
+
+        {/* Version Settings (only for non-terminal versions) */}
+        {detail && !TERMINAL_STATES.has(detail.appStoreState) && (
+          <div className="mt-8">
+            <VersionReleaseSection
+              appId={app.id}
+              versionId={version.id}
+              accountId={app.accountId}
+              detail={detail}
+              onDetailUpdate={refreshDetail}
+              isMobile={isMobile}
+            />
+            <PhasedReleaseSection
+              appId={app.id}
+              versionId={version.id}
+              accountId={app.accountId}
+              detail={detail}
+              onDetailUpdate={refreshDetail}
+              isMobile={isMobile}
+            />
+            <RatingResetSection
+              appId={app.id}
+              versionId={version.id}
+              accountId={app.accountId}
+              detail={detail}
+              onDetailUpdate={refreshDetail}
+              isMobile={isMobile}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
