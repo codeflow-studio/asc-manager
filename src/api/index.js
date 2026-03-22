@@ -430,6 +430,78 @@ export async function setSubscriptionPrices(appId, groupId, subId, { accountId, 
   return res.json();
 }
 
+// ── Screenshots ─────────────────────────────────────────────────────────────
+
+export async function fetchScreenshotSets(appId, versionId, locId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/localizations/${locId}/screenshot-sets?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch screenshot sets: ${res.status}`);
+  return res.json();
+}
+
+export async function createScreenshotSet(appId, versionId, locId, { accountId, displayType }) {
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/localizations/${locId}/screenshot-sets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, displayType }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to create screenshot set: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteScreenshotSet(setId, accountId, locId) {
+  const params = new URLSearchParams({ accountId, locId });
+  const res = await fetch(`/api/apps/screenshot-sets/${setId}?${params}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to delete screenshot set: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function uploadScreenshot(setId, accountId, locId, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("accountId", accountId);
+  formData.append("locId", locId);
+
+  const res = await fetch(`/api/apps/screenshot-sets/${setId}/screenshots/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to upload screenshot: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteScreenshot(screenshotId, accountId, locId) {
+  const params = new URLSearchParams({ accountId, locId });
+  const res = await fetch(`/api/apps/screenshots/${screenshotId}?${params}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to delete screenshot: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function reorderScreenshots(setId, accountId, locId, screenshotIds) {
+  const res = await fetch(`/api/apps/screenshot-sets/${setId}/screenshots/reorder`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, locId, screenshotIds }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to reorder screenshots: ${res.status}`);
+  }
+  return res.json();
+}
+
 // ── Xcode Cloud ─────────────────────────────────────────────────────────────
 
 export async function fetchBuildActions(appId, buildId, accountId) {
