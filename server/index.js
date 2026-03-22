@@ -4,6 +4,7 @@ import appsRouter from "./routes/apps.js";
 import productsRouter from "./routes/products.js";
 import xcodeCloudRouter from "./routes/xcode-cloud.js";
 import pricingRouter from "./routes/pricing.js";
+import screenshotsRouter from "./routes/screenshots.js";
 
 const app = express();
 
@@ -14,6 +15,7 @@ app.use("/api/apps", appsRouter);
 app.use("/api/apps", productsRouter);
 app.use("/api/apps", pricingRouter);
 app.use("/api/apps", xcodeCloudRouter);
+app.use("/api/apps", screenshotsRouter);
 
 const PORT = process.env.SERVER_PORT || 3001;
 app.listen(PORT, () => {

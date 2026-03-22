@@ -52,6 +52,26 @@ export const CI_PROGRESS_STATUS_MAP = {
   COMPLETE: { label: "Complete", color: "#34c759", bg: "rgba(52,199,89,0.12)" },
 };
 
+export const SCREENSHOT_DISPLAY_TYPES = {
+  APP_IPHONE_35: { label: 'iPhone 3.5"', category: "iPhone" },
+  APP_IPHONE_40: { label: 'iPhone 4"', category: "iPhone" },
+  APP_IPHONE_47: { label: 'iPhone 4.7"', category: "iPhone" },
+  APP_IPHONE_55: { label: 'iPhone 5.5"', category: "iPhone" },
+  APP_IPHONE_58: { label: 'iPhone 5.8"', category: "iPhone" },
+  APP_IPHONE_61: { label: 'iPhone 6.1"', category: "iPhone" },
+  APP_IPHONE_65: { label: 'iPhone 6.5"', category: "iPhone" },
+  APP_IPHONE_67: { label: 'iPhone 6.7"', category: "iPhone" },
+  APP_IPAD_97: { label: 'iPad 9.7"', category: "iPad" },
+  APP_IPAD_105: { label: 'iPad 10.5"', category: "iPad" },
+  APP_IPAD_PRO_3GEN_11: { label: 'iPad Pro 11"', category: "iPad" },
+  APP_IPAD_PRO_129: { label: 'iPad Pro 12.9"', category: "iPad" },
+  APP_IPAD_PRO_3GEN_129: { label: 'iPad Pro 12.9" (3rd gen)', category: "iPad" },
+  APP_WATCH_SERIES_4: { label: "Apple Watch Series 4", category: "Apple Watch" },
+  APP_WATCH_ULTRA: { label: "Apple Watch Ultra", category: "Apple Watch" },
+};
+
+export const SCREENSHOT_MAX_COUNT = 10;
+
 export const LOCALE_DISPLAY_NAMES = {
   "ar-SA": "Arabic",
   "ca": "Catalan",
@@ -93,6 +113,7 @@ export const LOCALE_DISPLAY_NAMES = {
   "zh-Hans": "Chinese (Simplified)",
   "zh-Hant": "Chinese (Traditional)",
 };
+
 
 export const SUBSCRIPTION_PERIODS = [
   { value: "ONE_WEEK", label: "1 Week" },

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchVersionDetail, fetchVersionBuilds, fetchAttachedBuild, attachBuild } from "../api/index.js";
 import Badge from "./Badge.jsx";
 import BuildSelector from "./BuildSelector.jsx";
+import ScreenshotsSection from "./ScreenshotsSection.jsx";
 import VersionLocalizationsSection from "./VersionLocalizationsSection.jsx";
 
 export default function VersionDetailPage({ app, version, accounts, isMobile }) {
@@ -171,6 +172,14 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
             isMobile={isMobile}
           />
         </div>
+
+        {/* Screenshots Section */}
+        <ScreenshotsSection
+          appId={app.id}
+          versionId={version.id}
+          accountId={app.accountId}
+          isMobile={isMobile}
+        />
 
         {/* Localizations Section */}
         <VersionLocalizationsSection
