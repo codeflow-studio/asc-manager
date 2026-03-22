@@ -24,5 +24,8 @@ export async function ascFetch(account, path, options = {}) {
     } catch {}
     throw new Error(detail);
   }
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return null;
+  }
   return res.json();
 }

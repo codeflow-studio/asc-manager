@@ -49,6 +49,8 @@ function normalizeBuildRun(item) {
     sourceCommit: a.sourceCommit || null,
     sourceBranchOrTag: a.sourceBranchOrTag || null,
     destinationBranch: a.destinationBranch || null,
+    startReason: a.startReason || null,
+    isPullRequestBuild: a.isPullRequestBuild ?? false,
   };
 }
 
@@ -161,6 +163,7 @@ router.get("/:appId/xcode-cloud/builds/:buildId/actions", async (req, res) => {
         startedDate: a.startedDate,
         finishedDate: a.finishedDate,
         issueCounts: a.issueCounts || {},
+        platform: a.platform || null,
       };
     });
     apiCache.set(cacheKey, result);
@@ -175,39 +178,183 @@ router.get("/:appId/xcode-cloud/builds/:buildId/actions", async (req, res) => {
 
 const MAX_LOG_SIZE = 2 * 1024 * 1024; // 2MB
 
+// Display name mapping for common log bundle entries
+const LOG_STEP_NAMES = {
+  "ci_post_clone.log": "Run ci_post_clone.sh script",
+  "ci_pre_xcodebuild.log": "Run ci_pre_xcodebuild.sh script",
+  "ci_post_xcodebuild.log": "Run ci_post_xcodebuild.sh script",
+  "xcodebuild-archive.log": "Run xcodebuild archive",
+  "resolve_package_dependencies.log": "Resolve package dependencies",
+  "development-export-archive-logs": "Export archive for development distribution",
+  "ad-hoc-export-archive-logs": "Export archive for ad-hoc distribution",
+  "app-store-export-archive-logs": "Export archive for app-store distribution",
+};
+
+function getStepDisplayName(fileName) {
+  return LOG_STEP_NAMES[fileName] || fileName.replace(/[-_]/g, " ").replace(/\.log$/, "");
+}
+
+// Cache downloaded log bundles in memory to avoid re-downloading for individual file requests
+const logBundleCache = new Map();
+const LOG_BUNDLE_TTL = 10 * 60 * 1000; // 10 minutes
+
+async function getLogBundle(account, actionId) {
+  const cached = logBundleCache.get(actionId);
+  if (cached && Date.now() < cached.expiresAt) return cached.zip;
+
+  const data = await ascFetch(account, `/v1/ciBuildActions/${actionId}/artifacts`);
+  const logArtifact = (data.data || []).find(
+    (item) => (item.attributes?.fileType || "").toUpperCase() === "LOG_BUNDLE"
+  );
+  if (!logArtifact?.attributes?.downloadUrl) return null;
+
+  const logRes = await fetch(logArtifact.attributes.downloadUrl);
+  if (!logRes.ok) return null;
+
+  const buffer = Buffer.from(await logRes.arrayBuffer());
+  const AdmZip = (await import("adm-zip")).default;
+  const zip = new AdmZip(buffer);
+  logBundleCache.set(actionId, { zip, expiresAt: Date.now() + LOG_BUNDLE_TTL });
+  return zip;
+}
+
+const ISO_TS_RE = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\t/;
+
+// Authoritative status patterns — last match in the log wins.
+// These are specific markers emitted by xcodebuild, shell, and fastlane at the
+// conclusion of a step. Broad patterns like /\bfailed\b/ are intentionally avoided
+// because diagnostic/informational lines frequently contain "failed" or "error"
+// without indicating an actual step failure.
+const STATUS_PATTERNS = [
+  { re: /\*\*\s*(BUILD|ARCHIVE|EXPORT)\s+SUCCEEDED\s*\*\*/, failed: false },
+  { re: /\*\*\s*(BUILD|ARCHIVE|EXPORT)\s+FAILED\s*\*\*/, failed: true },
+  { re: /exited with code\s+0\b/i, failed: false },
+  { re: /exited with code\s+[1-9]\d*/i, failed: true },
+  { re: /fastlane finished with errors/i, failed: true },
+];
+
+function extractLogMeta(entry) {
+  if (!entry || entry.isDirectory) return { duration: null, status: "success" };
+  const content = entry.getData().toString("utf8");
+  const lines = content.split("\n");
+
+  let first = null;
+  let last = null;
+  let failed = false;
+  for (const line of lines) {
+    const m = line.match(ISO_TS_RE);
+    if (m) {
+      if (!first) first = m[1];
+      last = m[1];
+    }
+    const stripped = line.replace(ISO_TS_RE, "");
+    for (const p of STATUS_PATTERNS) {
+      if (p.re.test(stripped)) {
+        failed = p.failed;
+        break;
+      }
+    }
+  }
+
+  let duration = null;
+  if (first && last) {
+    const diffSec = Math.max(0, Math.round((new Date(last) - new Date(first)) / 1000));
+    duration = diffSec < 60 ? `${diffSec}s` : `${Math.floor(diffSec / 60)}m ${diffSec % 60}s`;
+  }
+
+  return { duration, status: failed ? "failed" : "success" };
+}
+
+function parseLogSteps(zip) {
+  const entries = zip.getEntries();
+  // Find the root prefix (first directory level)
+  const rootPrefix = entries[0]?.entryName.split("/")[0] + "/";
+
+  const steps = [];
+  const seen = new Set();
+
+  for (const entry of entries) {
+    // Strip the root bundle directory prefix
+    const relative = entry.entryName.startsWith(rootPrefix)
+      ? entry.entryName.slice(rootPrefix.length)
+      : entry.entryName;
+    if (!relative) continue;
+
+    const parts = relative.split("/");
+    const topLevel = parts[0];
+    if (seen.has(topLevel)) continue;
+    seen.add(topLevel);
+
+    if (entry.isDirectory || parts.length > 1) {
+      // Directory-based step: find the main log file inside
+      const dirPrefix = rootPrefix + topLevel + "/";
+      const subEntries = entries.filter(
+        (e) => !e.isDirectory && e.entryName.startsWith(dirPrefix)
+      );
+      const mainLog = subEntries.find((e) => {
+        const name = e.entryName.split("/").pop();
+        return name === "xcodebuild-export-archive.log" || name.endsWith(".log");
+      });
+      steps.push({
+        name: getStepDisplayName(topLevel),
+        fileName: topLevel,
+        ...extractLogMeta(mainLog),
+        mainFile: mainLog ? mainLog.entryName : null,
+      });
+    } else {
+      // Single log file step
+      steps.push({
+        name: getStepDisplayName(topLevel),
+        fileName: topLevel,
+        ...extractLogMeta(entry),
+        mainFile: entry.entryName,
+      });
+    }
+  }
+  return steps;
+}
+
+// Get log structure (steps list)
 router.get("/:appId/xcode-cloud/builds/:buildId/actions/:actionId/logs", async (req, res) => {
   const { actionId } = req.params;
   const account = resolveAccount(req, res);
   if (!account) return;
 
   try {
-    const data = await ascFetch(account, `/v1/ciBuildActions/${actionId}/artifacts`);
-    const logArtifact = (data.data || []).find(
-      (item) => (item.attributes?.fileType || "").toUpperCase() === "LOGS"
-    );
+    const zip = await getLogBundle(account, actionId);
+    if (!zip) return res.json({ available: false });
 
-    if (!logArtifact) {
-      return res.json({ available: false });
-    }
+    const steps = parseLogSteps(zip);
+    res.json({ available: true, steps });
+  } catch (err) {
+    console.error(`Failed to fetch logs for action ${actionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
 
-    const downloadUrl = logArtifact.attributes?.downloadUrl;
-    if (!downloadUrl) {
-      return res.json({ available: false });
-    }
+// Get content for a specific log file
+router.get("/:appId/xcode-cloud/builds/:buildId/actions/:actionId/logs/file", async (req, res) => {
+  const { actionId } = req.params;
+  const { path: filePath } = req.query;
+  const account = resolveAccount(req, res);
+  if (!account) return;
 
-    const logRes = await fetch(downloadUrl);
-    if (!logRes.ok) {
-      return res.json({ available: false });
-    }
+  if (!filePath) return res.status(400).json({ error: "Missing path parameter" });
 
-    let content = await logRes.text();
+  try {
+    const zip = await getLogBundle(account, actionId);
+    if (!zip) return res.json({ error: "Log bundle not available" });
+
+    const entry = zip.getEntries().find((e) => e.entryName === filePath);
+    if (!entry) return res.status(404).json({ error: "File not found in log bundle" });
+
+    let content = entry.getData().toString("utf8");
     if (content.length > MAX_LOG_SIZE) {
       content = content.slice(0, MAX_LOG_SIZE) + "\n\n[log truncated at 2MB]";
     }
-
-    res.json({ available: true, content });
+    res.json({ content });
   } catch (err) {
-    console.error(`Failed to fetch logs for action ${actionId}:`, err.message);
+    console.error(`Failed to fetch log file for action ${actionId}:`, err.message);
     res.status(502).json({ error: err.message });
   }
 });
@@ -224,11 +371,20 @@ router.get("/:appId/xcode-cloud/builds/:buildId/actions/:actionId/issues", async
   if (cached) return res.json(cached);
 
   try {
-    const data = await ascFetch(account, `/v1/ciBuildActions/${actionId}/issues`);
-    const result = (data.data || []).map((item) => {
+    let allItems = [];
+    let url = `/v1/ciBuildActions/${actionId}/issues?limit=200`;
+    while (url) {
+      const data = await ascFetch(account, url);
+      allItems = allItems.concat(data.data || []);
+      // Follow pagination if there are more pages
+      const next = data.links?.next;
+      url = next ? next.replace("https://api.appstoreconnect.apple.com", "") : null;
+    }
+    const result = allItems.map((item) => {
       const a = item.attributes || {};
       return {
         category: a.category,
+        issueType: a.issueType || null,
         message: a.message,
         fileSource: a.fileSource || null,
       };

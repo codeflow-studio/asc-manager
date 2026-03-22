@@ -1,0 +1,34 @@
+name: Delete branch after PR merge
+
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  delete_branch:
+    if: >-
+      github.event.pull_request.merged == true && (
+        startsWith(github.event.pull_request.head.ref, 'feat') ||
+        startsWith(github.event.pull_request.head.ref, 'fix') ||
+        startsWith(github.event.pull_request.head.ref, 'chore') ||
+        startsWith(github.event.pull_request.head.ref, 'docs') ||
+        startsWith(github.event.pull_request.head.ref, 'refactor') ||
+        startsWith(github.event.pull_request.head.ref, 'style') ||
+        startsWith(github.event.pull_request.head.ref, 'test') ||
+        startsWith(github.event.pull_request.head.ref, 'perf') ||
+        startsWith(github.event.pull_request.head.ref, 'ci') ||
+        startsWith(github.event.pull_request.head.ref, 'build') ||
+        startsWith(github.event.pull_request.head.ref, 'revert')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Delete branch
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git push origin --delete ${{ github.event.pull_request.head.ref }}
