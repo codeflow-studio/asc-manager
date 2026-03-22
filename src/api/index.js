@@ -374,6 +374,62 @@ export async function deleteSubscriptionLocalization(appId, groupId, subId, locI
   return res.json();
 }
 
+// ── Pricing ─────────────────────────────────────────────────────────────────
+
+export async function fetchIAPPrices(appId, iapId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/iap/${iapId}/prices?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch IAP prices: ${res.status}`);
+  return res.json();
+}
+
+export async function setIAPPrices(appId, iapId, { accountId, baseTerritory, manualPrices }) {
+  const res = await fetch(`/api/apps/${appId}/iap/${iapId}/prices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, baseTerritory, manualPrices }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to set IAP prices: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchSubscriptionPrices(appId, groupId, subId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/subscription-groups/${groupId}/subscriptions/${subId}/prices?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch subscription prices: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchIAPPricePoints(appId, iapId, territory, accountId) {
+  const params = new URLSearchParams({ territory, accountId });
+  const res = await fetch(`/api/apps/${appId}/iap/${iapId}/price-points?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch IAP price points: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchSubscriptionPricePoints(appId, groupId, subId, territory, accountId) {
+  const params = new URLSearchParams({ territory, accountId });
+  const res = await fetch(`/api/apps/${appId}/subscription-groups/${groupId}/subscriptions/${subId}/price-points?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch subscription price points: ${res.status}`);
+  return res.json();
+}
+
+export async function setSubscriptionPrices(appId, groupId, subId, { accountId, prices }) {
+  const res = await fetch(`/api/apps/${appId}/subscription-groups/${groupId}/subscriptions/${subId}/prices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, prices }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to set subscription prices: ${res.status}`);
+  }
+  return res.json();
+}
+
 // ── Xcode Cloud ─────────────────────────────────────────────────────────────
 
 export async function fetchBuildActions(appId, buildId, accountId) {

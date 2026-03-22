@@ -7,6 +7,7 @@ import {
   fetchSubscriptionLocalizations, createSubscriptionLocalization, updateSubscriptionLocalization, deleteSubscriptionLocalization,
 } from "../api/index.js";
 import { IAP_TYPES, SUBSCRIPTION_PERIODS } from "../constants/index.js";
+import PricingPanel from "./PricingPanel.jsx";
 
 const labelCls = "text-[11px] uppercase tracking-wide font-semibold text-dark-dim mb-1.5 block";
 const inputCls = "w-full px-3.5 py-2.5 bg-dark-surface border border-dark-border-light rounded-lg text-dark-text outline-none font-sans text-[13px] transition-colors";
@@ -72,6 +73,7 @@ export default function ProductModal({ mode, target, appId, accountId, isMobile,
   const isSub = mode.includes("sub");
   const isGroup = mode.includes("group");
   const showLocs = isEditMode && (isIAP || isSub);
+  const showPricing = isEditMode && (isIAP || isSub);
 
   // Lazy-load localizations
   useEffect(() => {
@@ -179,10 +181,10 @@ export default function ProductModal({ mode, target, appId, accountId, isMobile,
       <div
         onClick={(e) => e.stopPropagation()}
         style={{ animation: "asc-fadein 0.3s ease" }}
-        className={`bg-dark-card border border-dark-border-light w-full overflow-y-auto shadow-[0_32px_64px_rgba(0,0,0,0.15)] ${
+        className={`bg-dark-card border border-dark-border-light w-full shadow-[0_32px_64px_rgba(0,0,0,0.15)] ${
           isMobile
-            ? "rounded-t-2xl max-w-full max-h-[90vh]"
-            : "rounded-2xl max-w-[540px] max-h-[85vh]"
+            ? "rounded-t-2xl max-w-full max-h-[90vh] overflow-y-auto"
+            : "rounded-2xl max-w-[540px] max-h-[85vh] overflow-y-auto"
         }`}
       >
         {/* Header */}
@@ -430,6 +432,17 @@ export default function ProductModal({ mode, target, appId, accountId, isMobile,
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Pricing panel (edit modes only) */}
+            {showPricing && (
+              <PricingPanel
+                productType={isIAP ? "iap" : "subscription"}
+                productId={target.id}
+                groupId={target.groupId}
+                appId={appId}
+                accountId={accountId}
+              />
             )}
           </div>
 

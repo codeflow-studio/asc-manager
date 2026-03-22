@@ -88,7 +88,7 @@ export default function ProductsPage({ app, accounts, isMobile }) {
   const nonRenewing = iaps.filter((i) => i.type === "NON_RENEWING_SUBSCRIPTION");
 
   return (
-    <div style={{ animation: "asc-slidein 0.3s ease both" }}>
+    <div style={{ animation: "asc-slidein 0.3s ease backwards" }}>
       {/* Back navigation bar */}
       <div className={`sticky top-0 z-10 bg-dark-bg/80 backdrop-blur-lg border-b border-dark-border ${isMobile ? "px-3 py-3" : "px-7 py-3"}`}>
         <div className="flex items-center gap-3">
