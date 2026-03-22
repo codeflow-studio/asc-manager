@@ -13,7 +13,7 @@ app.use("/api/apps", appsRouter);
 app.use("/api/apps", productsRouter);
 app.use("/api/apps", xcodeCloudRouter);
 
-const PORT = 3001;
+const PORT = process.env.SERVER_PORT || 3001;
 app.listen(PORT, () => {
   console.log(`ASC proxy server running on http://localhost:${PORT}`);
 });

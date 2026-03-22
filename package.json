@@ -22,6 +22,7 @@
   "author": "Codeflow Studio",
   "license": "MIT",
   "scripts": {
+    "start": "node --env-file=.env --watch server/index.js & vite --clearScreen false",
     "server": "node --watch server/index.js",
     "dev": "vite",
     "build": "vite build",

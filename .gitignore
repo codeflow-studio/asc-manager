@@ -26,3 +26,6 @@ Thumbs.db
 
 # Vite
 *.local
+
+# React Component Preview
+previewConfig.json
