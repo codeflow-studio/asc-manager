@@ -282,10 +282,25 @@ router.get("/:appId/versions/:versionId", async (req, res) => {
   try {
     const data = await ascFetch(
       account,
-      `/v1/appStoreVersions/${versionId}?fields[appStoreVersions]=versionString,appStoreState,platform,createdDate,releaseType,earliestReleaseDate,downloadable`
+      `/v1/appStoreVersions/${versionId}?fields[appStoreVersions]=versionString,appStoreState,platform,createdDate,releaseType,earliestReleaseDate,downloadable,reviewType&include=appStoreVersionPhasedRelease&fields[appStoreVersionPhasedReleases]=phasedReleaseState,currentDayNumber,startDate,totalPauseDuration`
     );
 
     const attrs = data.data.attributes;
+
+    let phasedRelease = null;
+    if (data.included) {
+      const pr = data.included.find((inc) => inc.type === "appStoreVersionPhasedReleases");
+      if (pr) {
+        phasedRelease = {
+          id: pr.id,
+          phasedReleaseState: pr.attributes.phasedReleaseState,
+          currentDayNumber: pr.attributes.currentDayNumber,
+          startDate: pr.attributes.startDate,
+          totalPauseDuration: pr.attributes.totalPauseDuration,
+        };
+      }
+    }
+
     const result = {
       id: data.data.id,
       versionString: attrs.versionString,
@@ -295,12 +310,147 @@ router.get("/:appId/versions/:versionId", async (req, res) => {
       releaseType: attrs.releaseType,
       earliestReleaseDate: attrs.earliestReleaseDate,
       downloadable: attrs.downloadable,
+      reviewType: attrs.reviewType,
+      phasedRelease,
     };
 
     apiCache.set(cacheKey, result);
     res.json(result);
   } catch (err) {
     console.error(`Failed to fetch version detail ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Version Settings (release type, rating reset) ───────────────────────────
+
+router.patch("/:appId/versions/:versionId", async (req, res) => {
+  const { versionId } = req.params;
+  const { accountId, releaseType, earliestReleaseDate, resetRatingSummary } = req.body;
+
+  if (!accountId) {
+    return res.status(400).json({ error: "accountId is required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) return res.status(400).json({ error: "Account not found" });
+
+  const attributes = {};
+  if (releaseType !== undefined) attributes.releaseType = releaseType;
+  if (earliestReleaseDate !== undefined) attributes.earliestReleaseDate = earliestReleaseDate;
+  if (resetRatingSummary !== undefined) attributes.resetRatingSummary = resetRatingSummary;
+
+  try {
+    await ascFetch(account, `/v1/appStoreVersions/${versionId}`, {
+      method: "PATCH",
+      body: {
+        data: { type: "appStoreVersions", id: versionId, attributes },
+      },
+    });
+
+    apiCache.deleteByPrefix(`apps:version-detail:${versionId}:`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`Failed to update version ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Phased Release ──────────────────────────────────────────────────────────
+
+router.post("/:appId/versions/:versionId/phased-release", async (req, res) => {
+  const { versionId } = req.params;
+  const { accountId, phasedReleaseState } = req.body;
+
+  if (!accountId) {
+    return res.status(400).json({ error: "accountId is required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) return res.status(400).json({ error: "Account not found" });
+
+  try {
+    const data = await ascFetch(account, "/v1/appStoreVersionPhasedReleases", {
+      method: "POST",
+      body: {
+        data: {
+          type: "appStoreVersionPhasedReleases",
+          attributes: { phasedReleaseState: phasedReleaseState || "INACTIVE" },
+          relationships: {
+            appStoreVersion: { data: { type: "appStoreVersions", id: versionId } },
+          },
+        },
+      },
+    });
+
+    apiCache.deleteByPrefix(`apps:version-detail:${versionId}:`);
+    res.json({
+      id: data.data.id,
+      phasedReleaseState: data.data.attributes.phasedReleaseState,
+      currentDayNumber: data.data.attributes.currentDayNumber,
+      startDate: data.data.attributes.startDate,
+      totalPauseDuration: data.data.attributes.totalPauseDuration,
+    });
+  } catch (err) {
+    console.error(`Failed to create phased release for version ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.patch("/:appId/versions/:versionId/phased-release/:phasedReleaseId", async (req, res) => {
+  const { versionId, phasedReleaseId } = req.params;
+  const { accountId, phasedReleaseState } = req.body;
+
+  if (!accountId) {
+    return res.status(400).json({ error: "accountId is required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) return res.status(400).json({ error: "Account not found" });
+
+  try {
+    const data = await ascFetch(account, `/v1/appStoreVersionPhasedReleases/${phasedReleaseId}`, {
+      method: "PATCH",
+      body: {
+        data: {
+          type: "appStoreVersionPhasedReleases",
+          id: phasedReleaseId,
+          attributes: { phasedReleaseState },
+        },
+      },
+    });
+
+    apiCache.deleteByPrefix(`apps:version-detail:${versionId}:`);
+    res.json({
+      id: data.data.id,
+      phasedReleaseState: data.data.attributes.phasedReleaseState,
+      currentDayNumber: data.data.attributes.currentDayNumber,
+      startDate: data.data.attributes.startDate,
+      totalPauseDuration: data.data.attributes.totalPauseDuration,
+    });
+  } catch (err) {
+    console.error(`Failed to update phased release ${phasedReleaseId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.delete("/:appId/versions/:versionId/phased-release/:phasedReleaseId", async (req, res) => {
+  const { versionId, phasedReleaseId } = req.params;
+  const { accountId } = req.query;
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+  if (!account) return res.status(400).json({ error: "No accounts configured" });
+
+  try {
+    await ascFetch(account, `/v1/appStoreVersionPhasedReleases/${phasedReleaseId}`, { method: "DELETE" });
+    apiCache.deleteByPrefix(`apps:version-detail:${versionId}:`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`Failed to delete phased release ${phasedReleaseId}:`, err.message);
     res.status(502).json({ error: err.message });
   }
 });

@@ -97,6 +97,57 @@ export async function attachBuild(appId, versionId, buildId, accountId) {
   return res.json();
 }
 
+// ── Version Settings (release type, phased release, rating reset) ────────────
+
+export async function updateVersionRelease(appId, versionId, { accountId, releaseType, earliestReleaseDate, resetRatingSummary }) {
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, releaseType, earliestReleaseDate, resetRatingSummary }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to update version release: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function createPhasedRelease(appId, versionId, { accountId, phasedReleaseState }) {
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/phased-release`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, phasedReleaseState }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to create phased release: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updatePhasedRelease(appId, versionId, phasedReleaseId, { accountId, phasedReleaseState }) {
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/phased-release/${phasedReleaseId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, phasedReleaseState }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to update phased release: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deletePhasedRelease(appId, versionId, phasedReleaseId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/phased-release/${phasedReleaseId}?${params}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to delete phased release: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchAppLookup(bundleId) {
   const params = new URLSearchParams({ bundleId });
   const res = await fetch(`/api/apps/lookup?${params}`);
