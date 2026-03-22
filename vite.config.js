@@ -9,6 +9,11 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     appType: "spa",
+    test: {
+      environment: "jsdom",
+      globals: true,
+      setupFiles: ["./tests/setup.js"],
+    },
     server: {
       port: parseInt(env.PORT || "5173"),
       proxy: {

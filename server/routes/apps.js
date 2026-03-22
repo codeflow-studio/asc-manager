@@ -424,6 +424,138 @@ router.patch("/:appId/versions/:versionId/build", async (req, res) => {
   }
 });
 
+// ── Version Localizations ───────────────────────────────────────────────────
+
+function normalizeVersionLocalization(item) {
+  return {
+    id: item.id,
+    locale: item.attributes.locale,
+    description: item.attributes.description,
+    whatsNew: item.attributes.whatsNew,
+    keywords: item.attributes.keywords,
+    promotionalText: item.attributes.promotionalText,
+    supportUrl: item.attributes.supportUrl,
+    marketingUrl: item.attributes.marketingUrl,
+  };
+}
+
+router.get("/:appId/versions/:versionId/localizations", async (req, res) => {
+  const { versionId } = req.params;
+  const { accountId } = req.query;
+
+  const cacheKey = `apps:version-locs:${versionId}:${accountId || "default"}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+
+  try {
+    const data = await ascFetch(
+      account,
+      `/v1/appStoreVersions/${versionId}/appStoreVersionLocalizations?fields[appStoreVersionLocalizations]=locale,description,whatsNew,keywords,promotionalText,supportUrl,marketingUrl`
+    );
+    const locs = (data.data || []).map(normalizeVersionLocalization);
+    apiCache.set(cacheKey, locs);
+    res.json(locs);
+  } catch (err) {
+    console.error(`Failed to fetch version localizations for ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.post("/:appId/versions/:versionId/localizations", async (req, res) => {
+  const { versionId } = req.params;
+  const { accountId, locale, description, whatsNew, keywords, promotionalText, supportUrl, marketingUrl } = req.body;
+
+  if (!accountId || !locale) {
+    return res.status(400).json({ error: "accountId and locale are required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) return res.status(400).json({ error: "Account not found" });
+
+  const attributes = { locale };
+  if (description !== undefined) attributes.description = description;
+  if (whatsNew !== undefined) attributes.whatsNew = whatsNew;
+  if (keywords !== undefined) attributes.keywords = keywords;
+  if (promotionalText !== undefined) attributes.promotionalText = promotionalText;
+  if (supportUrl !== undefined) attributes.supportUrl = supportUrl;
+  if (marketingUrl !== undefined) attributes.marketingUrl = marketingUrl;
+
+  try {
+    const data = await ascFetch(account, "/v1/appStoreVersionLocalizations", {
+      method: "POST",
+      body: {
+        data: {
+          type: "appStoreVersionLocalizations",
+          attributes,
+          relationships: {
+            appStoreVersion: { data: { type: "appStoreVersions", id: versionId } },
+          },
+        },
+      },
+    });
+    apiCache.deleteByPrefix(`apps:version-locs:${versionId}:`);
+    res.json(normalizeVersionLocalization(data.data));
+  } catch (err) {
+    console.error(`Failed to create version localization for ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.patch("/:appId/versions/:versionId/localizations/:locId", async (req, res) => {
+  const { versionId, locId } = req.params;
+  const { accountId, description, whatsNew, keywords, promotionalText, supportUrl, marketingUrl } = req.body;
+
+  if (!accountId) return res.status(400).json({ error: "accountId is required" });
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) return res.status(400).json({ error: "Account not found" });
+
+  const attributes = {};
+  if (description !== undefined) attributes.description = description;
+  if (whatsNew !== undefined) attributes.whatsNew = whatsNew;
+  if (keywords !== undefined) attributes.keywords = keywords;
+  if (promotionalText !== undefined) attributes.promotionalText = promotionalText;
+  if (supportUrl !== undefined) attributes.supportUrl = supportUrl;
+  if (marketingUrl !== undefined) attributes.marketingUrl = marketingUrl;
+
+  try {
+    const data = await ascFetch(account, `/v1/appStoreVersionLocalizations/${locId}`, {
+      method: "PATCH",
+      body: {
+        data: { type: "appStoreVersionLocalizations", id: locId, attributes },
+      },
+    });
+    apiCache.deleteByPrefix(`apps:version-locs:${versionId}:`);
+    res.json(normalizeVersionLocalization(data.data));
+  } catch (err) {
+    console.error(`Failed to update version localization ${locId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.delete("/:appId/versions/:versionId/localizations/:locId", async (req, res) => {
+  const { versionId, locId } = req.params;
+  const { accountId } = req.query;
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+  if (!account) return res.status(400).json({ error: "No accounts configured" });
+
+  try {
+    await ascFetch(account, `/v1/appStoreVersionLocalizations/${locId}`, { method: "DELETE" });
+    apiCache.deleteByPrefix(`apps:version-locs:${versionId}:`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`Failed to delete version localization ${locId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   const { appId, versionId } = req.params;
   const { accountId } = req.body;

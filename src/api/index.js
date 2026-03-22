@@ -104,6 +104,51 @@ export async function fetchAppLookup(bundleId) {
   return res.json();
 }
 
+// ── Version Localizations ───────────────────────────────────────────────────
+
+export async function fetchVersionLocalizations(appId, versionId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/localizations?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch version localizations: ${res.status}`);
+  return res.json();
+}
+
+export async function createVersionLocalization(appId, versionId, { accountId, locale, ...fields }) {
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/localizations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, locale, ...fields }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to create version localization: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateVersionLocalization(appId, versionId, locId, { accountId, ...fields }) {
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/localizations/${locId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId, ...fields }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to update version localization: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteVersionLocalization(appId, versionId, locId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/versions/${versionId}/localizations/${locId}?${params}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to delete version localization: ${res.status}`);
+  }
+  return res.json();
+}
+
 // ── In-App Purchases ─────────────────────────────────────────────────────────
 
 export async function fetchIAPs(appId, accountId) {

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchVersionDetail, fetchVersionBuilds, fetchAttachedBuild, attachBuild } from "../api/index.js";
 import Badge from "./Badge.jsx";
 import BuildSelector from "./BuildSelector.jsx";
+import VersionLocalizationsSection from "./VersionLocalizationsSection.jsx";
 
 export default function VersionDetailPage({ app, version, accounts, isMobile }) {
   const [detail, setDetail] = useState(null);
@@ -169,6 +170,14 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
             onAttach={handleAttachBuild}
           />
         </div>
+
+        {/* Localizations Section */}
+        <VersionLocalizationsSection
+          appId={app.id}
+          versionId={version.id}
+          accountId={app.accountId}
+          isMobile={isMobile}
+        />
       </div>
     </div>
   );
