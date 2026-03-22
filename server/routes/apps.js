@@ -340,7 +340,7 @@ router.get("/:appId/builds", async (req, res) => {
         buildAudienceType: attrs.buildAudienceType,
         iconUrl,
       };
-    });
+    }).sort((a, b) => new Date(b.uploadedDate) - new Date(a.uploadedDate));
 
     apiCache.set(cacheKey, builds);
     res.json(builds);
