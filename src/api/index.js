@@ -390,6 +390,13 @@ export async function fetchActionLogs(appId, buildId, actionId, accountId) {
   return res.json();
 }
 
+export async function fetchLogFile(appId, buildId, actionId, accountId, filePath) {
+  const params = new URLSearchParams({ accountId, path: filePath });
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/builds/${buildId}/actions/${actionId}/logs/file?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch log file: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchActionIssues(appId, buildId, actionId, accountId) {
   const params = new URLSearchParams({ accountId });
   const res = await fetch(`/api/apps/${appId}/xcode-cloud/builds/${buildId}/actions/${actionId}/issues?${params}`);

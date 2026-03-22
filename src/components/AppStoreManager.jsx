@@ -340,7 +340,7 @@ export default function AppStoreManager() {
   }
 
   return (
-    <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased flex">
+    <div className="font-sans bg-dark-bg text-dark-text h-screen overflow-hidden antialiased flex">
       <Sidebar
         isMobile={isMobile}
         sidebarOpen={sidebarOpen}
@@ -365,7 +365,7 @@ export default function AppStoreManager() {
         />
       )}
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col overflow-y-auto">
         <TopBar
           isMobile={isMobile}
           search={search}
