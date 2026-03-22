@@ -6,6 +6,7 @@ import BuildSelector from "./BuildSelector.jsx";
 import VersionReleaseSection from "./VersionReleaseSection.jsx";
 import PhasedReleaseSection from "./PhasedReleaseSection.jsx";
 import RatingResetSection from "./RatingResetSection.jsx";
+import ScreenshotsSection from "./ScreenshotsSection.jsx";
 import VersionLocalizationsSection from "./VersionLocalizationsSection.jsx";
 
 export default function VersionDetailPage({ app, version, accounts, isMobile }) {
@@ -184,6 +185,14 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
             isMobile={isMobile}
           />
         </div>
+
+        {/* Screenshots Section */}
+        <ScreenshotsSection
+          appId={app.id}
+          versionId={version.id}
+          accountId={app.accountId}
+          isMobile={isMobile}
+        />
 
         {/* Localizations Section */}
         <VersionLocalizationsSection
