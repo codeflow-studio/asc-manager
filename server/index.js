@@ -1,10 +1,12 @@
 import express from "express";
-import accountsRouter from "./routes/accounts.js";
-import appsRouter from "./routes/apps.js";
-import productsRouter from "./routes/products.js";
-import xcodeCloudRouter from "./routes/xcode-cloud.js";
-import pricingRouter from "./routes/pricing.js";
-import screenshotsRouter from "./routes/screenshots.js";
+import {
+  accountsRouter,
+  appsRouter,
+  productsRouter,
+  xcodeCloudRouter,
+  pricingRouter,
+  screenshotsRouter,
+} from "./routes/index.js";
 
 const app = express();
 

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
-const DATA_DIR = join(process.cwd(), "data");
+const DATA_DIR = process.env.ASC_DATA_DIR || join(process.cwd(), "data");
 const ACCOUNTS_FILE = join(DATA_DIR, "accounts.json");
 
 function ensureDataDir() {
