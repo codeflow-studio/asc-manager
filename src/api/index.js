@@ -596,3 +596,31 @@ export async function fetchCiWorkflows(appId, accountId) {
   if (!res.ok) throw new Error(`Failed to fetch CI workflows: ${res.status}`);
   return res.json();
 }
+
+export async function fetchCiWorkflowDetail(appId, workflowId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/workflows/${workflowId}?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch workflow detail: ${res.status}`);
+  return res.json();
+}
+
+export async function updateCiWorkflow(appId, workflowId, payload) {
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/workflows/${workflowId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to update workflow: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchCiXcodeVersions(appId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/xcode-cloud/xcode-versions?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch Xcode versions: ${res.status}`);
+  return res.json();
+}
+

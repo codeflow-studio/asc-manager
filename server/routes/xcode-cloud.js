@@ -54,19 +54,40 @@ function normalizeBuildRun(item) {
   };
 }
 
-function normalizeWorkflow(item) {
+function normalizeWorkflow(item, included) {
   const a = item.attributes || {};
-  return {
+  const workflow = {
     id: item.id,
     name: a.name,
     description: a.description || "",
     branchStartCondition: a.branchStartCondition || null,
+    tagStartCondition: a.tagStartCondition || null,
     pullRequestStartCondition: a.pullRequestStartCondition || null,
     scheduledStartCondition: a.scheduledStartCondition || null,
+    manualBranchStartCondition: a.manualBranchStartCondition || null,
+    manualTagStartCondition: a.manualTagStartCondition || null,
+    manualPullRequestStartCondition: a.manualPullRequestStartCondition || null,
     actions: a.actions || [],
     isEnabled: a.isEnabled ?? true,
+    clean: a.clean ?? false,
+    containerFilePath: a.containerFilePath || "",
+    isLockedForEditing: a.isLockedForEditing ?? false,
     lastModifiedDate: a.lastModifiedDate,
   };
+
+  if (included) {
+    const rels = item.relationships || {};
+    if (rels.xcodeVersion?.data?.id) {
+      const xv = included.find((i) => i.type === "ciXcodeVersions" && i.id === rels.xcodeVersion.data.id);
+      if (xv) workflow.xcodeVersion = { id: xv.id, name: xv.attributes?.name, version: xv.attributes?.version };
+    }
+    if (rels.macOsVersion?.data?.id) {
+      const mv = included.find((i) => i.type === "ciMacOsVersions" && i.id === rels.macOsVersion.data.id);
+      if (mv) workflow.macOsVersion = { id: mv.id, name: mv.attributes?.name, version: mv.attributes?.version };
+    }
+  }
+
+  return workflow;
 }
 
 // ── Build Runs ──────────────────────────────────────────────────────────────
@@ -135,6 +156,160 @@ router.get("/:appId/xcode-cloud/workflows", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error(`Failed to fetch CI workflows for app ${appId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Single Workflow ──────────────────────────────────────────────────────────
+
+router.get("/:appId/xcode-cloud/workflows/:workflowId", async (req, res) => {
+  const { workflowId } = req.params;
+  const account = resolveAccount(req, res);
+  if (!account) return;
+
+  const cacheKey = `ci:workflow:${workflowId}:${account.id}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const data = await ascFetch(
+      account,
+      `/v1/ciWorkflows/${workflowId}?include=xcodeVersion,macOsVersion`
+    );
+    const result = normalizeWorkflow(data.data, data.included || []);
+    apiCache.set(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error(`Failed to fetch workflow ${workflowId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Update Workflow ─────────────────────────────────────────────────────────
+
+router.patch("/:appId/xcode-cloud/workflows/:workflowId", async (req, res) => {
+  const { appId, workflowId } = req.params;
+  const account = resolveAccount(req, res);
+  if (!account) return;
+
+  try {
+    const {
+      accountId: _a, name, description, isEnabled, clean,
+      isLockedForEditing, containerFilePath, actions,
+      branchStartCondition, tagStartCondition,
+      pullRequestStartCondition, scheduledStartCondition,
+      manualBranchStartCondition, manualTagStartCondition,
+      manualPullRequestStartCondition,
+      xcodeVersionId, macOsVersionId,
+    } = req.body;
+
+    const attributes = {};
+    if (name !== undefined) attributes.name = name;
+    if (description !== undefined) attributes.description = description;
+    if (isEnabled !== undefined) attributes.isEnabled = isEnabled;
+    if (clean !== undefined) attributes.clean = clean;
+    if (isLockedForEditing !== undefined) attributes.isLockedForEditing = isLockedForEditing;
+    if (containerFilePath !== undefined) attributes.containerFilePath = containerFilePath;
+    if (actions !== undefined) attributes.actions = actions;
+    if (branchStartCondition !== undefined) attributes.branchStartCondition = branchStartCondition;
+    if (tagStartCondition !== undefined) attributes.tagStartCondition = tagStartCondition;
+    if (pullRequestStartCondition !== undefined) attributes.pullRequestStartCondition = pullRequestStartCondition;
+    if (scheduledStartCondition !== undefined) attributes.scheduledStartCondition = scheduledStartCondition;
+    if (manualBranchStartCondition !== undefined) attributes.manualBranchStartCondition = manualBranchStartCondition;
+    if (manualTagStartCondition !== undefined) attributes.manualTagStartCondition = manualTagStartCondition;
+    if (manualPullRequestStartCondition !== undefined) attributes.manualPullRequestStartCondition = manualPullRequestStartCondition;
+
+    const relationships = {};
+    if (xcodeVersionId) {
+      relationships.xcodeVersion = { data: { type: "ciXcodeVersions", id: xcodeVersionId } };
+    }
+    if (macOsVersionId) {
+      relationships.macOsVersion = { data: { type: "ciMacOsVersions", id: macOsVersionId } };
+    }
+
+    const body = {
+      data: {
+        type: "ciWorkflows",
+        id: workflowId,
+        attributes,
+        ...(Object.keys(relationships).length > 0 && { relationships }),
+      },
+    };
+
+    const data = await ascFetch(account, `/v1/ciWorkflows/${workflowId}`, {
+      method: "PATCH",
+      body,
+    });
+
+    // Invalidate caches
+    apiCache.delete(`ci:workflows:${appId}:${account.id}`);
+    apiCache.delete(`ci:workflow:${workflowId}:${account.id}`);
+
+    const result = normalizeWorkflow(data.data, data.included || []);
+    res.json(result);
+  } catch (err) {
+    console.error(`Failed to update workflow ${workflowId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Xcode & macOS Versions ──────────────────────────────────────────────────
+
+const VERSION_TTL = 60 * 60 * 1000; // 1 hour
+
+router.get("/:appId/xcode-cloud/xcode-versions", async (req, res) => {
+  const account = resolveAccount(req, res);
+  if (!account) return;
+
+  const cacheKey = `ci:xcode-versions:${account.id}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const data = await ascFetch(account, `/v1/ciXcodeVersions?include=macOsVersions&limit=50`);
+    const result = (data.data || []).map((item) => {
+      const a = item.attributes || {};
+      const macOsVersionIds = (item.relationships?.macOsVersions?.data || []).map((r) => r.id);
+      const macOsVersions = macOsVersionIds
+        .map((id) => {
+          const mv = (data.included || []).find((i) => i.type === "ciMacOsVersions" && i.id === id);
+          return mv ? { id: mv.id, name: mv.attributes?.name, version: mv.attributes?.version } : null;
+        })
+        .filter(Boolean);
+      return {
+        id: item.id,
+        name: a.name,
+        version: a.version,
+        testDestinations: a.testDestinations || [],
+        macOsVersions,
+      };
+    });
+    apiCache.set(cacheKey, result, VERSION_TTL);
+    res.json(result);
+  } catch (err) {
+    console.error("Failed to fetch Xcode versions:", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.get("/:appId/xcode-cloud/macos-versions", async (req, res) => {
+  const account = resolveAccount(req, res);
+  if (!account) return;
+
+  const cacheKey = `ci:macos-versions:${account.id}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const data = await ascFetch(account, `/v1/ciMacOsVersions?limit=50`);
+    const result = (data.data || []).map((item) => {
+      const a = item.attributes || {};
+      return { id: item.id, name: a.name, version: a.version };
+    });
+    apiCache.set(cacheKey, result, VERSION_TTL);
+    res.json(result);
+  } catch (err) {
+    console.error("Failed to fetch macOS versions:", err.message);
     res.status(502).json({ error: err.message });
   }
 });

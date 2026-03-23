@@ -53,6 +53,13 @@ function TriggerInfo({ workflow }) {
     triggers.push(`PR: ${branchNames.length > 0 ? branchNames.join(", ") : "any"}`);
   }
 
+  if (workflow.tagStartCondition) {
+    const c = workflow.tagStartCondition;
+    const patterns = c.source?.tagPatterns || [];
+    const tagNames = patterns.map((p) => p.pattern).filter(Boolean);
+    triggers.push(`Tag: ${tagNames.length > 0 ? tagNames.join(", ") : "any"}`);
+  }
+
   if (workflow.scheduledStartCondition) {
     triggers.push("Scheduled");
   }
@@ -70,7 +77,7 @@ function TriggerInfo({ workflow }) {
   );
 }
 
-export default function XcodeCloudPage({ app, accounts, isMobile, onSelectBuild }) {
+export default function XcodeCloudPage({ app, accounts, isMobile, onSelectBuild, onSelectWorkflow }) {
   const [buildRuns, setBuildRuns] = useState([]);
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -175,7 +182,11 @@ export default function XcodeCloudPage({ app, accounts, isMobile, onSelectBuild 
               ) : (
                 <div className="space-y-1.5 mt-2">
                   {workflows.map((wf) => (
-                    <div key={wf.id} className="bg-dark-surface rounded-[10px] px-4 py-3">
+                    <div
+                      key={wf.id}
+                      className="bg-dark-surface rounded-[10px] px-4 py-3 cursor-pointer hover:bg-dark-hover transition-colors"
+                      onClick={() => onSelectWorkflow?.(wf)}
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
