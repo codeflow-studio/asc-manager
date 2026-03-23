@@ -72,7 +72,9 @@ export default function Sidebar({
         </div>
         <div>
           <div className="text-sm font-extrabold tracking-tight">ASC Manager</div>
-          <div className="text-[10px] text-dark-ghost font-semibold">Multi-Account Hub</div>
+          <div className="text-[10px] text-dark-ghost font-semibold">
+            {__APP_TITLE__ === "ASC Manager" ? "Multi-Account Hub" : __APP_TITLE__.replace("ASC Manager \u2014 ", "")}
+          </div>
         </div>
         {isMobile && (
           <span
