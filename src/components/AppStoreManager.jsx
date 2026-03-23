@@ -11,6 +11,7 @@ import VersionDetailPage from "./VersionDetailPage.jsx";
 import ProductsPage from "./ProductsPage.jsx";
 import XcodeCloudPage from "./XcodeCloudPage.jsx";
 import BuildDetailPage from "./BuildDetailPage.jsx";
+import WorkflowEditPage from "./WorkflowEditPage.jsx";
 
 function buildGroups(apps, groupBy, accounts) {
   if (groupBy === "none") return [{ key: "all", label: null, apps }];
@@ -42,6 +43,8 @@ function getRouteFromPath() {
   if (versionMatch) return { appId: versionMatch[1], versionId: versionMatch[2], subPage: null };
   const productsMatch = path.match(/^\/app\/([^/]+)\/products$/);
   if (productsMatch) return { appId: productsMatch[1], versionId: null, subPage: "products" };
+  const xcodeCloudWorkflowMatch = path.match(/^\/app\/([^/]+)\/xcode-cloud\/workflow\/([^/]+)$/);
+  if (xcodeCloudWorkflowMatch) return { appId: xcodeCloudWorkflowMatch[1], versionId: null, subPage: "xcode-cloud-workflow", workflowId: xcodeCloudWorkflowMatch[2] };
   const xcodeCloudBuildMatch = path.match(/^\/app\/([^/]+)\/xcode-cloud\/build\/([^/]+)$/);
   if (xcodeCloudBuildMatch) return { appId: xcodeCloudBuildMatch[1], versionId: null, subPage: "xcode-cloud-build", buildId: xcodeCloudBuildMatch[2] };
   const xcodeCloudMatch = path.match(/^\/app\/([^/]+)\/xcode-cloud$/);
@@ -110,6 +113,20 @@ export default function AppStoreManager() {
   }, []);
 
   const [selectedBuildRun, setSelectedBuildRun] = useState(null);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState(null);
+
+  const navigateToWorkflowEdit = useCallback((workflow, app) => {
+    setSelectedApp(app);
+    setSelectedVersion(null);
+    setSelectedBuildRun(null);
+    setSelectedWorkflowId(workflow.id);
+    setCurrentView("xcode-cloud-workflow");
+    window.history.pushState(
+      { appId: app.id, workflowId: workflow.id, subPage: "xcode-cloud-workflow" },
+      "",
+      `/app/${app.id}/xcode-cloud/workflow/${workflow.id}`
+    );
+  }, []);
 
   const navigateToXcodeCloudBuild = useCallback((buildRun, app) => {
     setSelectedApp(app);
@@ -149,6 +166,13 @@ export default function AppStoreManager() {
         if (appMatch) {
           setSelectedApp(appMatch);
           setCurrentView("products");
+        }
+      } else if (route.subPage === "xcode-cloud-workflow") {
+        const appMatch = appsList.find((a) => a.id === route.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          setSelectedWorkflowId(route.workflowId);
+          setCurrentView("xcode-cloud-workflow");
         }
       } else if (route.subPage === "xcode-cloud-build") {
         const appMatch = appsList.find((a) => a.id === route.appId);
@@ -218,6 +242,21 @@ export default function AppStoreManager() {
         const appMatch = apps.find((a) => a.id === route.appId);
         setSelectedApp(appMatch || null);
         setCurrentView(appMatch ? "products" : null);
+        return;
+      }
+
+      if (route.subPage === "xcode-cloud-workflow") {
+        const appMatch = apps.find((a) => a.id === route.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          setSelectedWorkflowId(route.workflowId);
+          setSelectedBuildRun(null);
+          setCurrentView("xcode-cloud-workflow");
+        } else {
+          setSelectedApp(null);
+          setSelectedWorkflowId(null);
+          setCurrentView(null);
+        }
         return;
       }
 
@@ -298,6 +337,18 @@ export default function AppStoreManager() {
     );
   }
 
+  if (currentView === "xcode-cloud-workflow" && selectedApp && selectedWorkflowId) {
+    return (
+      <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
+        <WorkflowEditPage
+          app={selectedApp}
+          workflowId={selectedWorkflowId}
+          isMobile={isMobile}
+        />
+      </div>
+    );
+  }
+
   if (currentView === "xcode-cloud-build" && selectedApp && selectedBuildRun) {
     return (
       <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
@@ -319,6 +370,7 @@ export default function AppStoreManager() {
           accounts={accounts}
           isMobile={isMobile}
           onSelectBuild={(buildRun) => navigateToXcodeCloudBuild(buildRun, selectedApp)}
+          onSelectWorkflow={(workflow) => navigateToWorkflowEdit(workflow, selectedApp)}
         />
       </div>
     );

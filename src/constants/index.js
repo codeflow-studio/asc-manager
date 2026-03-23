@@ -60,3 +60,34 @@ export const SUBSCRIPTION_PERIODS = [
   { value: "SIX_MONTHS", label: "6 Months" },
   { value: "ONE_YEAR", label: "1 Year" },
 ];
+
+export const CI_ACTION_TYPES = [
+  { value: "BUILD", label: "Build" },
+  { value: "ANALYZE", label: "Analyze" },
+  { value: "TEST", label: "Test" },
+  { value: "ARCHIVE", label: "Archive" },
+];
+
+export const CI_PLATFORMS = [
+  { value: "IOS", label: "iOS" },
+  { value: "MACOS", label: "macOS" },
+  { value: "TVOS", label: "tvOS" },
+  { value: "WATCHOS", label: "watchOS" },
+  { value: "VISIONOS", label: "visionOS" },
+];
+
+export const CI_SCHEDULE_FREQUENCIES = [
+  { value: "WEEKLY", label: "Weekly" },
+  { value: "DAILY", label: "Daily" },
+  { value: "HOURLY", label: "Hourly" },
+];
+
+export const CI_DAYS_OF_WEEK = [
+  { value: "SUNDAY", label: "Sun" },
+  { value: "MONDAY", label: "Mon" },
+  { value: "TUESDAY", label: "Tue" },
+  { value: "WEDNESDAY", label: "Wed" },
+  { value: "THURSDAY", label: "Thu" },
+  { value: "FRIDAY", label: "Fri" },
+  { value: "SATURDAY", label: "Sat" },
+];
