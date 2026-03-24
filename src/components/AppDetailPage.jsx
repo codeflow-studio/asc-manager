@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchAppLookup } from "../api/index.js";
 import AppIcon from "./AppIcon.jsx";
 import Badge from "./Badge.jsx";
+import AppReviewSection from "./AppReviewSection.jsx";
 import VersionHistory from "./VersionHistory.jsx";
 
 function StarRating({ rating }) {
@@ -165,6 +166,9 @@ export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion
             </div>
           </div>
         )}
+
+        {/* App Review */}
+        <AppReviewSection appId={app.id} accountId={app.accountId} />
 
         {/* Version History */}
         <div>
