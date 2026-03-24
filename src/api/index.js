@@ -200,6 +200,15 @@ export async function deleteVersionLocalization(appId, versionId, locId, account
   return res.json();
 }
 
+// ── Review Submissions ──────────────────────────────────────────────────────
+
+export async function fetchReviewSubmissions(appId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/review-submissions?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch review submissions: ${res.status}`);
+  return res.json();
+}
+
 // ── In-App Purchases ─────────────────────────────────────────────────────────
 
 export async function fetchIAPs(appId, accountId) {

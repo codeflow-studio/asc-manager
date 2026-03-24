@@ -706,6 +706,152 @@ router.delete("/:appId/versions/:versionId/localizations/:locId", async (req, re
   }
 });
 
+// ── Review Submissions ──────────────────────────────────────────────────────
+
+const REVIEW_STATE_DISPLAY = {
+  WAITING_FOR_REVIEW: "Waiting for Review",
+  IN_REVIEW: "In Review",
+  UNRESOLVED_ISSUES: "Unresolved issues",
+  COMPLETE: "Review Completed",
+  CANCELING: "Removed",
+};
+
+function buildReviewSubmissionUrl(appId, { states, limit }) {
+  const base = `/v1/apps/${appId}/reviewSubmissions`;
+  const params = [
+    "include=items,appStoreVersionForReview,submittedByActor",
+    "fields[reviewSubmissions]=submittedDate,state,platform,items,appStoreVersionForReview,submittedByActor",
+    "fields[reviewSubmissionItems]=state,appStoreVersion",
+    "fields[appStoreVersions]=versionString,platform",
+    "fields[actors]=userFirstName,userLastName",
+    `limit=${limit}`,
+  ];
+  if (states) {
+    params.push(`filter[state]=${states.join(",")}`);
+  }
+  return `${base}?${params.join("&")}`;
+}
+
+function parseReviewSubmissions(data) {
+  const includedMap = new Map();
+  if (data.included) {
+    for (const inc of data.included) {
+      includedMap.set(`${inc.type}:${inc.id}`, inc);
+    }
+  }
+
+  return (data.data || []).map((submission) => {
+    const attrs = submission.attributes;
+    const state = attrs.state;
+
+    // Count items
+    const itemRefs = submission.relationships?.items?.data || [];
+    const itemCount = itemRefs.length;
+
+    // Resolve version string -- try appStoreVersionForReview first, then items
+    let versions = null;
+    const versionRef = submission.relationships?.appStoreVersionForReview?.data;
+    if (versionRef) {
+      const ver = includedMap.get(`${versionRef.type}:${versionRef.id}`);
+      if (ver) {
+        const platform = ver.attributes.platform === "IOS" ? "iOS" : ver.attributes.platform === "MAC_OS" ? "macOS" : ver.attributes.platform;
+        versions = `${platform} ${ver.attributes.versionString}`;
+      }
+    }
+
+    if (!versions && itemRefs.length > 0) {
+      const versionStrings = new Set();
+      for (const ref of itemRefs) {
+        const item = includedMap.get(`${ref.type}:${ref.id}`);
+        const itemVersionRef = item?.relationships?.appStoreVersion?.data;
+        if (itemVersionRef) {
+          const ver = includedMap.get(`${itemVersionRef.type}:${itemVersionRef.id}`);
+          if (ver) {
+            const platform = ver.attributes.platform === "IOS" ? "iOS" : ver.attributes.platform === "MAC_OS" ? "macOS" : ver.attributes.platform;
+            versionStrings.add(`${platform} ${ver.attributes.versionString}`);
+          }
+        }
+      }
+      if (versionStrings.size > 1) versions = "Multiple Versions";
+      else if (versionStrings.size === 1) versions = [...versionStrings][0];
+    }
+
+    if (itemCount > 1 && !versions) versions = "Multiple Versions";
+
+    // Resolve submittedBy
+    let submittedBy = null;
+    const actorRef = submission.relationships?.submittedByActor?.data;
+    if (actorRef) {
+      const actor = includedMap.get(`${actorRef.type}:${actorRef.id}`);
+      if (actor) {
+        submittedBy = [actor.attributes.userFirstName, actor.attributes.userLastName].filter(Boolean).join(" ");
+      }
+    }
+
+    // Derive display status: for COMPLETE submissions, check item states
+    // If all items are REMOVED, show "Removed" instead of "Review Completed"
+    let displayStatus = REVIEW_STATE_DISPLAY[state] || state;
+    if (state === "COMPLETE" && itemRefs.length > 0) {
+      const allRemoved = itemRefs.every((ref) => {
+        const item = includedMap.get(`${ref.type}:${ref.id}`);
+        return item?.attributes?.state === "REMOVED";
+      });
+      if (allRemoved) displayStatus = "Removed";
+    }
+
+    return { id: submission.id, state, displayStatus, submittedDate: attrs.submittedDate, versions, submittedBy, itemCount };
+  });
+}
+
+router.get("/:appId/review-submissions", async (req, res) => {
+  const { appId } = req.params;
+  const { accountId } = req.query;
+
+  const cacheKey = `apps:review-submissions:${appId}:${accountId || "default"}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+
+  try {
+    // Two parallel calls: one for unresolved messages, one for terminal submissions
+    const [messagesData, submissionsData] = await Promise.all([
+      ascFetch(account, buildReviewSubmissionUrl(appId, { states: ["UNRESOLVED_ISSUES"], limit: 10 })),
+      ascFetch(account, buildReviewSubmissionUrl(appId, { states: ["COMPLETE", "CANCELING"], limit: 10 })),
+    ]);
+
+    const rawMessages = parseReviewSubmissions(messagesData);
+    const rawSubmissions = parseReviewSubmissions(submissionsData);
+
+    const messages = rawMessages.map((m) => ({
+      id: m.id,
+      createdDate: m.submittedDate,
+      versions: m.versions || "Unknown",
+      gracePeriodEnds: null,
+      status: m.displayStatus,
+    }));
+    messages.sort((a, b) => new Date(b.createdDate) - new Date(a.createdDate));
+
+    const submissions = rawSubmissions.map((s) => ({
+      id: s.id,
+      submittedDate: s.submittedDate,
+      versions: s.versions || "Unknown",
+      submittedBy: s.submittedBy || "Unknown",
+      itemCount: s.itemCount === 1 ? "1 Item" : `${s.itemCount} Items`,
+      status: s.displayStatus,
+    }));
+    submissions.sort((a, b) => new Date(b.submittedDate) - new Date(a.submittedDate));
+
+    const result = { messages, submissions: submissions.slice(0, 10) };
+    apiCache.set(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error(`Failed to fetch review submissions for app ${appId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   const { appId, versionId } = req.params;
   const { accountId } = req.body;
@@ -735,6 +881,7 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
 
     apiCache.delete("apps:list");
     apiCache.deleteByPrefix(`apps:versions:${appId}:`);
+    apiCache.deleteByPrefix(`apps:review-submissions:${appId}:`);
 
     res.json({ success: true, versionId });
   } catch (err) {
