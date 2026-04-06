@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchVersionDetail, fetchVersionBuilds, fetchAttachedBuild, attachBuild } from "../api/index.js";
+import { fetchVersionDetail, fetchVersionBuilds, fetchAttachedBuild, attachBuild, submitForReview } from "../api/index.js";
 import { TERMINAL_STATES } from "../constants/index.js";
 import Badge from "./Badge.jsx";
 import BuildSelector from "./BuildSelector.jsx";
@@ -22,6 +22,10 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
   const [attaching, setAttaching] = useState(false);
   const [attachingBuildId, setAttachingBuildId] = useState(null);
   const [attachError, setAttachError] = useState(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
   const refreshDetail = useCallback(async () => {
     try {
@@ -90,6 +94,20 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
     } finally {
       setAttaching(false);
       setAttachingBuildId(null);
+    }
+  }
+
+  async function handleSubmitForReview() {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await submitForReview(app.id, version.id, app.accountId);
+      setShowSubmitConfirm(false);
+      await refreshDetail();
+    } catch (err) {
+      setSubmitError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -185,6 +203,44 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
             isMobile={isMobile}
           />
         </div>
+
+        {/* Submit for Review */}
+        {detail && detail.appStoreState === "PREPARE_FOR_SUBMISSION" && attachedBuild && (
+          <div className="mt-6">
+            {submitError && (
+              <div className="text-[11px] text-danger font-medium mb-3">{submitError}</div>
+            )}
+            {showSubmitConfirm ? (
+              <div className="border border-accent/30 bg-accent/5 rounded-[10px] px-4 py-3">
+                <div className="text-[13px] text-dark-text font-medium mb-1">Submit version {v.versionString} for App Review?</div>
+                <div className="text-[11px] text-dark-dim mb-3">This will move the version to "Waiting for Review". This action cannot be undone.</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSubmitForReview}
+                    disabled={submitting}
+                    className="px-4 py-1.5 rounded-lg text-[12px] font-semibold bg-accent text-white border-none cursor-pointer font-sans hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submitting ? "Submitting..." : "Confirm Submit"}
+                  </button>
+                  <button
+                    onClick={() => { setShowSubmitConfirm(false); setSubmitError(null); }}
+                    disabled={submitting}
+                    className="px-4 py-1.5 rounded-lg text-[12px] font-semibold bg-transparent text-dark-dim border border-dark-border cursor-pointer font-sans hover:bg-dark-surface transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowSubmitConfirm(true)}
+                className="w-full px-4 py-3 rounded-[10px] text-[13px] font-semibold bg-accent text-white border-none cursor-pointer font-sans hover:brightness-110 transition-all"
+              >
+                Submit for Review
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Screenshots Section */}
         <ScreenshotsSection
