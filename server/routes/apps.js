@@ -457,9 +457,9 @@ router.delete("/:appId/versions/:versionId/phased-release/:phasedReleaseId", asy
 
 router.get("/:appId/builds", async (req, res) => {
   const { appId } = req.params;
-  const { accountId } = req.query;
+  const { accountId, versionString } = req.query;
 
-  const cacheKey = `apps:builds:${appId}:${accountId || "default"}`;
+  const cacheKey = `apps:builds:${appId}:${accountId || "default"}:${versionString || "all"}`;
   const cached = apiCache.get(cacheKey);
   if (cached) return res.json(cached);
 
@@ -467,10 +467,14 @@ router.get("/:appId/builds", async (req, res) => {
   const account = accounts.find((a) => a.id === accountId) || accounts[0];
 
   try {
-    const data = await ascFetch(
-      account,
-      `/v1/apps/${appId}/builds?fields[builds]=version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType&limit=25`
-    );
+    const fields = "fields[builds]=version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType";
+    let url;
+    if (versionString) {
+      url = `/v1/builds?filter[app]=${appId}&filter[preReleaseVersion.version]=${encodeURIComponent(versionString)}&${fields}&limit=25`;
+    } else {
+      url = `/v1/apps/${appId}/builds?${fields}&limit=25`;
+    }
+    const data = await ascFetch(account, url);
 
     const builds = data.data.map((b) => {
       const attrs = b.attributes;

@@ -70,8 +70,9 @@ export async function fetchVersionDetail(appId, versionId, accountId) {
   return res.json();
 }
 
-export async function fetchVersionBuilds(appId, accountId) {
+export async function fetchVersionBuilds(appId, accountId, versionString) {
   const params = new URLSearchParams({ accountId });
+  if (versionString) params.set("versionString", versionString);
   const res = await fetch(`/api/apps/${appId}/builds?${params}`);
   if (!res.ok) throw new Error(`Failed to fetch builds: ${res.status}`);
   return res.json();

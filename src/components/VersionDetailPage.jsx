@@ -56,7 +56,7 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
       try {
         setBuildsLoading(true);
         setBuildsError(null);
-        const data = await fetchVersionBuilds(app.id, app.accountId);
+        const data = await fetchVersionBuilds(app.id, app.accountId, version.versionString);
         if (!cancelled) setBuilds(data);
       } catch (err) {
         if (!cancelled) setBuildsError(err.message);
