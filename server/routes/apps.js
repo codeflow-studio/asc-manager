@@ -822,7 +822,7 @@ router.get("/:appId/review-submissions", async (req, res) => {
     // Two parallel calls: one for unresolved messages, one for terminal submissions
     const [messagesData, submissionsData] = await Promise.all([
       ascFetch(account, buildReviewSubmissionUrl(appId, { states: ["UNRESOLVED_ISSUES"], limit: 10 })),
-      ascFetch(account, buildReviewSubmissionUrl(appId, { states: ["COMPLETE", "CANCELING"], limit: 10 })),
+      ascFetch(account, buildReviewSubmissionUrl(appId, { states: ["WAITING_FOR_REVIEW", "IN_REVIEW"], limit: 10 })),
     ]);
 
     const rawMessages = parseReviewSubmissions(messagesData);

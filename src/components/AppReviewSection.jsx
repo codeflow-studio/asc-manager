@@ -89,7 +89,7 @@ function SubmissionsTable({ submissions }) {
     <div>
       <h3 className="text-[12px] font-bold text-dark-text uppercase tracking-wide mb-1">Submissions</h3>
       <p className="text-[12px] text-dark-dim mb-3 mt-0">
-        You can see the last 10 completed submissions for this app.
+        Submissions currently in review or waiting for review.
       </p>
       <div className="bg-dark-surface rounded-[10px] overflow-hidden">
         <div className="overflow-x-auto">
