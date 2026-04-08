@@ -12,6 +12,7 @@ import ProductsPage from "./ProductsPage.jsx";
 import XcodeCloudPage from "./XcodeCloudPage.jsx";
 import BuildDetailPage from "./BuildDetailPage.jsx";
 import WorkflowEditPage from "./WorkflowEditPage.jsx";
+import ReviewSubmissionDetail from "./ReviewSubmissionDetail.jsx";
 
 function buildGroups(apps, groupBy, accounts) {
   if (groupBy === "none") return [{ key: "all", label: null, apps }];
@@ -49,6 +50,8 @@ function getRouteFromPath() {
   if (xcodeCloudBuildMatch) return { appId: xcodeCloudBuildMatch[1], versionId: null, subPage: "xcode-cloud-build", buildId: xcodeCloudBuildMatch[2] };
   const xcodeCloudMatch = path.match(/^\/app\/([^/]+)\/xcode-cloud$/);
   if (xcodeCloudMatch) return { appId: xcodeCloudMatch[1], versionId: null, subPage: "xcode-cloud" };
+  const reviewMatch = path.match(/^\/app\/([^/]+)\/review\/([^/]+)$/);
+  if (reviewMatch) return { appId: reviewMatch[1], versionId: null, subPage: "review", submissionId: reviewMatch[2] };
   const appMatch = path.match(/^\/app\/([^/]+)$/);
   if (appMatch) return { appId: appMatch[1], versionId: null, subPage: null };
   return { appId: null, versionId: null, subPage: null };
@@ -114,6 +117,7 @@ export default function AppStoreManager() {
 
   const [selectedBuildRun, setSelectedBuildRun] = useState(null);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(null);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
 
   const navigateToWorkflowEdit = useCallback((workflow, app) => {
     setSelectedApp(app);
@@ -137,6 +141,18 @@ export default function AppStoreManager() {
       { appId: app.id, buildId: buildRun.id, subPage: "xcode-cloud-build" },
       "",
       `/app/${app.id}/xcode-cloud/build/${buildRun.id}`
+    );
+  }, []);
+
+  const navigateToReviewDetail = useCallback((submissionId, app) => {
+    setSelectedApp(app);
+    setSelectedVersion(null);
+    setSelectedSubmissionId(submissionId);
+    setCurrentView("review");
+    window.history.pushState(
+      { appId: app.id, submissionId, subPage: "review" },
+      "",
+      `/app/${app.id}/review/${submissionId}`
     );
   }, []);
 
@@ -186,6 +202,13 @@ export default function AppStoreManager() {
           } catch {
             // Build deep-link resolution failed, page will show with available data
           }
+        }
+      } else if (route.subPage === "review") {
+        const appMatch = appsList.find((a) => a.id === route.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          setSelectedSubmissionId(route.submissionId);
+          setCurrentView("review");
         }
       } else if (route.subPage === "xcode-cloud") {
         const appMatch = appsList.find((a) => a.id === route.appId);
@@ -279,6 +302,20 @@ export default function AppStoreManager() {
         return;
       }
 
+      if (route.subPage === "review") {
+        const appMatch = apps.find((a) => a.id === route.appId);
+        if (appMatch) {
+          setSelectedApp(appMatch);
+          setSelectedSubmissionId(route.submissionId);
+          setCurrentView("review");
+        } else {
+          setSelectedApp(null);
+          setSelectedSubmissionId(null);
+          setCurrentView(null);
+        }
+        return;
+      }
+
       if (route.subPage === "xcode-cloud") {
         const appMatch = apps.find((a) => a.id === route.appId);
         setSelectedApp(appMatch || null);
@@ -337,6 +374,18 @@ export default function AppStoreManager() {
     );
   }
 
+  if (currentView === "review" && selectedApp && selectedSubmissionId) {
+    return (
+      <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
+        <ReviewSubmissionDetail
+          app={selectedApp}
+          submissionId={selectedSubmissionId}
+          isMobile={isMobile}
+        />
+      </div>
+    );
+  }
+
   if (currentView === "xcode-cloud-workflow" && selectedApp && selectedWorkflowId) {
     return (
       <div className="font-sans bg-dark-bg text-dark-text min-h-screen antialiased">
@@ -386,6 +435,7 @@ export default function AppStoreManager() {
           onSelectVersion={(version) => selectVersion(version, selectedApp)}
           onViewProducts={() => navigateToProducts(selectedApp)}
           onViewXcodeCloud={() => navigateToXcodeCloud(selectedApp)}
+          onViewReviewDetail={(submissionId) => navigateToReviewDetail(submissionId, selectedApp)}
         />
       </div>
     );

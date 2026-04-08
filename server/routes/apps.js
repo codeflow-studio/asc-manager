@@ -1112,47 +1112,12 @@ router.get("/:appId/review-submissions/:submissionId", async (req, res) => {
   try {
     const submissionUrl = `/v1/reviewSubmissions/${submissionId}`
       + "?include=items,appStoreVersionForReview,submittedByActor,lastUpdatedByActor"
-      + "&fields[reviewSubmissions]=submittedDate,state,platform"
+      + "&fields[reviewSubmissions]=submittedDate,state,platform,items,appStoreVersionForReview,submittedByActor,lastUpdatedByActor"
       + "&fields[reviewSubmissionItems]=state,appStoreVersion"
       + "&fields[appStoreVersions]=versionString,platform,appStoreState"
       + "&fields[actors]=userFirstName,userLastName";
 
-    const itemsUrl = `/v1/reviewSubmissions/${submissionId}/items`
-      + "?include=appStoreVersion"
-      + "&fields[reviewSubmissionItems]=state,appStoreVersion"
-      + "&fields[appStoreVersions]=versionString,platform,appStoreState";
-
-    const [submissionData, itemsData] = await Promise.all([
-      ascFetch(account, submissionUrl),
-      ascFetch(account, itemsUrl),
-    ]);
-
-    // Replace item objects with richer ones from items endpoint (they carry appStoreVersion relationship)
-    if (!submissionData.included) submissionData.included = [];
-    if (itemsData.data) {
-      for (const item of itemsData.data) {
-        const idx = submissionData.included.findIndex((e) => e.type === item.type && e.id === item.id);
-        if (idx >= 0) submissionData.included[idx] = item;
-        else submissionData.included.push(item);
-      }
-    }
-    // Merge included version objects from items endpoint
-    if (itemsData.included) {
-      for (const inc of itemsData.included) {
-        const exists = submissionData.included.some((e) => e.type === inc.type && e.id === inc.id);
-        if (!exists) submissionData.included.push(inc);
-      }
-    }
-
-    // DEBUG: log raw API responses to understand structure
-    console.log("=== SUBMISSION DATA ===");
-    console.log("data.relationships:", JSON.stringify(submissionData.data?.relationships, null, 2));
-    console.log("included types:", submissionData.included?.map(i => `${i.type}:${i.id}`));
-    console.log("=== ITEMS DATA ===");
-    console.log("itemsData.data:", JSON.stringify(itemsData.data, null, 2));
-    console.log("itemsData.included:", JSON.stringify(itemsData.included, null, 2));
-    console.log("=== MERGED INCLUDED ===");
-    console.log("all included:", submissionData.included?.map(i => `${i.type}:${i.id} rels=${Object.keys(i.relationships || {}).join(",")}`));
+    const submissionData = await ascFetch(account, submissionUrl);
 
     const result = parseReviewSubmissionDetail(submissionData);
 

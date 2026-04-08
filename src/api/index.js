@@ -234,6 +234,13 @@ export async function fetchReviewSubmissions(appId, accountId) {
   return res.json();
 }
 
+export async function fetchReviewSubmissionDetail(appId, submissionId, accountId) {
+  const params = new URLSearchParams({ accountId });
+  const res = await fetch(`/api/apps/${appId}/review-submissions/${submissionId}?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch review submission detail: ${res.status}`);
+  return res.json();
+}
+
 // ── In-App Purchases ─────────────────────────────────────────────────────────
 
 export async function fetchIAPs(appId, accountId) {
