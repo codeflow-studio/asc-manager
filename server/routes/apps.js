@@ -468,13 +468,23 @@ router.get("/:appId/builds", async (req, res) => {
 
   try {
     const fields = "fields[builds]=version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType";
+    const encryptionInclude = "include=appEncryptionDeclaration&fields[appEncryptionDeclarations]=usesNonExemptEncryption,appEncryptionDeclarationState";
     let url;
     if (versionString) {
-      url = `/v1/builds?filter[app]=${appId}&filter[preReleaseVersion.version]=${encodeURIComponent(versionString)}&${fields}&limit=25`;
+      url = `/v1/builds?filter[app]=${appId}&filter[preReleaseVersion.version]=${encodeURIComponent(versionString)}&${fields}&${encryptionInclude}&limit=25`;
     } else {
-      url = `/v1/apps/${appId}/builds?${fields}&limit=25`;
+      url = `/v1/apps/${appId}/builds?${fields}&${encryptionInclude}&limit=25`;
     }
     const data = await ascFetch(account, url);
+
+    const includedDeclarations = new Map();
+    if (data.included) {
+      for (const inc of data.included) {
+        if (inc.type === "appEncryptionDeclarations") {
+          includedDeclarations.set(inc.id, inc.attributes);
+        }
+      }
+    }
 
     const builds = data.data.map((b) => {
       const attrs = b.attributes;
@@ -485,6 +495,8 @@ router.get("/:appId/builds", async (req, res) => {
           .replace("{h}", "128")
           .replace("{f}", "png");
       }
+      const declId = b.relationships?.appEncryptionDeclaration?.data?.id || null;
+      const declAttrs = declId ? includedDeclarations.get(declId) : null;
       return {
         id: b.id,
         version: attrs.version,
@@ -493,6 +505,9 @@ router.get("/:appId/builds", async (req, res) => {
         minOsVersion: attrs.minOsVersion,
         buildAudienceType: attrs.buildAudienceType,
         iconUrl,
+        encryptionDeclarationId: declId,
+        usesNonExemptEncryption: declAttrs?.usesNonExemptEncryption ?? null,
+        complianceState: declAttrs?.appEncryptionDeclarationState ?? null,
       };
     }).sort((a, b) => new Date(b.uploadedDate) - new Date(a.uploadedDate));
 
@@ -574,6 +589,94 @@ router.patch("/:appId/versions/:versionId/build", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error(`Failed to attach build to version ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Build Encryption Compliance ─────────────────────────────────────────────
+
+router.get("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) => {
+  const { buildId } = req.params;
+  const { accountId } = req.query;
+
+  const cacheKey = `apps:build-encryption:${buildId}:${accountId || "default"}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+
+  try {
+    const data = await ascFetch(
+      account,
+      `/v1/builds/${buildId}/appEncryptionDeclaration?fields[appEncryptionDeclarations]=usesNonExemptEncryption,appEncryptionDeclarationState,containsProprietaryCryptography,containsThirdPartyCryptography,availableOnFrenchStore,codeValue,platform`
+    );
+
+    const decl = data.data
+      ? {
+          id: data.data.id,
+          ...data.data.attributes,
+        }
+      : null;
+
+    const result = { declaration: decl };
+    apiCache.set(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error(`Failed to fetch encryption declaration for build ${buildId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.patch("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) => {
+  const { appId, buildId } = req.params;
+  const { accountId, usesNonExemptEncryption, containsProprietaryCryptography, containsThirdPartyCryptography } = req.body;
+
+  if (!accountId) {
+    return res.status(400).json({ error: "accountId is required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) {
+    return res.status(400).json({ error: "Account not found" });
+  }
+
+  try {
+    // Fetch the existing declaration ID
+    const declData = await ascFetch(
+      account,
+      `/v1/builds/${buildId}/appEncryptionDeclaration?fields[appEncryptionDeclarations]=appEncryptionDeclarationState`
+    );
+
+    if (!declData.data) {
+      return res.status(404).json({ error: "No encryption declaration found for this build" });
+    }
+
+    const declarationId = declData.data.id;
+    const attributes = { usesNonExemptEncryption };
+    if (usesNonExemptEncryption) {
+      if (containsProprietaryCryptography !== undefined) attributes.containsProprietaryCryptography = containsProprietaryCryptography;
+      if (containsThirdPartyCryptography !== undefined) attributes.containsThirdPartyCryptography = containsThirdPartyCryptography;
+    }
+
+    await ascFetch(account, `/v1/appEncryptionDeclarations/${declarationId}`, {
+      method: "PATCH",
+      body: {
+        data: {
+          type: "appEncryptionDeclarations",
+          id: declarationId,
+          attributes,
+        },
+      },
+    });
+
+    apiCache.deleteByPrefix(`apps:build-encryption:${buildId}:`);
+    apiCache.deleteByPrefix(`apps:builds:${appId}:`);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`Failed to update encryption declaration for build ${buildId}:`, err.message);
     res.status(502).json({ error: err.message });
   }
 });

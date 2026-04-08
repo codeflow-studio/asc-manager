@@ -1,7 +1,13 @@
 import { useState } from "react";
 import BuildSelectorModal from "./BuildSelectorModal.jsx";
 
-export default function BuildSelector({ builds, attachedBuild, loading, attaching, attachingBuildId, error, onAttach, isMobile }) {
+function isMissingCompliance(build) {
+  if (!build) return false;
+  const state = build.complianceState;
+  return state === "MISSING" || state === "INVALID" || (state && state.startsWith("MISSING"));
+}
+
+export default function BuildSelector({ builds, attachedBuild, loading, attaching, attachingBuildId, error, onAttach, onManageCompliance, isMobile }) {
   const [showModal, setShowModal] = useState(false);
 
   function formatDate(dateString) {
@@ -72,6 +78,20 @@ export default function BuildSelector({ builds, attachedBuild, loading, attachin
                   <span className="text-[11px] text-dark-dim">Min OS {attachedBuild.minOsVersion}</span>
                 )}
               </div>
+              {isMissingCompliance(attachedBuild) && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="#ff9500">
+                    <path d="M10 2L1 18h18L10 2zm0 3.5l6.5 11.5h-13L10 5.5zM9 9v4h2V9H9zm0 5v2h2v-2H9z" />
+                  </svg>
+                  <span className="text-[11px] text-[#ff9500] font-medium">Missing Compliance</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onManageCompliance?.(attachedBuild); }}
+                    className="text-[11px] font-semibold text-accent cursor-pointer bg-transparent border-none font-sans hover:underline ml-1"
+                  >
+                    Manage
+                  </button>
+                </div>
+              )}
             </div>
             <button
               onClick={() => setShowModal(true)}

@@ -1,3 +1,9 @@
+function isMissingCompliance(build) {
+  if (!build) return false;
+  const state = build.complianceState;
+  return state === "MISSING" || state === "INVALID" || (state && state.startsWith("MISSING"));
+}
+
 export default function BuildSelectorModal({ builds, attachedBuild, attaching, attachingBuildId, onAttach, onClose, isMobile }) {
   function formatDate(dateString) {
     if (!dateString) return "\u2014";
@@ -82,6 +88,11 @@ export default function BuildSelectorModal({ builds, attachedBuild, attaching, a
                           <span className="text-[11px] text-dark-dim">{formatDate(b.uploadedDate)}</span>
                           {b.minOsVersion && (
                             <span className="text-[11px] text-dark-dim">Min OS {b.minOsVersion}</span>
+                          )}
+                          {isMissingCompliance(b) && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-[#ff9500] bg-[#ff9500]/10 border border-[#ff9500]/20">
+                              Missing Compliance
+                            </span>
                           )}
                         </div>
                       </div>
