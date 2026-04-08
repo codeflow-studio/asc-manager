@@ -468,7 +468,7 @@ router.get("/:appId/builds", async (req, res) => {
 
   try {
     const fields = "fields[builds]=version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType";
-    const encryptionInclude = "include=appEncryptionDeclaration&fields[appEncryptionDeclarations]=usesNonExemptEncryption,appEncryptionDeclarationState";
+    const encryptionInclude = "include=appEncryptionDeclaration&fields[appEncryptionDeclarations]=usesEncryption,appEncryptionDeclarationState";
     let url;
     if (versionString) {
       url = `/v1/builds?filter[app]=${appId}&filter[preReleaseVersion.version]=${encodeURIComponent(versionString)}&${fields}&${encryptionInclude}&limit=25`;
@@ -506,7 +506,7 @@ router.get("/:appId/builds", async (req, res) => {
         buildAudienceType: attrs.buildAudienceType,
         iconUrl,
         encryptionDeclarationId: declId,
-        usesNonExemptEncryption: declAttrs?.usesNonExemptEncryption ?? null,
+        usesNonExemptEncryption: declAttrs?.usesEncryption ?? null,
         complianceState: declAttrs?.appEncryptionDeclarationState ?? null,
       };
     }).sort((a, b) => new Date(b.uploadedDate) - new Date(a.uploadedDate));
@@ -609,7 +609,7 @@ router.get("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) => 
   try {
     const data = await ascFetch(
       account,
-      `/v1/builds/${buildId}/appEncryptionDeclaration?fields[appEncryptionDeclarations]=usesNonExemptEncryption,appEncryptionDeclarationState,containsProprietaryCryptography,containsThirdPartyCryptography,availableOnFrenchStore,codeValue,platform`
+      `/v1/builds/${buildId}/appEncryptionDeclaration?fields[appEncryptionDeclarations]=usesEncryption,appEncryptionDeclarationState,containsProprietaryCryptography,containsThirdPartyCryptography,availableOnFrenchStore,codeValue,platform`
     );
 
     const decl = data.data
@@ -630,7 +630,7 @@ router.get("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) => 
 
 router.patch("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) => {
   const { appId, buildId } = req.params;
-  const { accountId, usesNonExemptEncryption, containsProprietaryCryptography, containsThirdPartyCryptography } = req.body;
+  const { accountId, usesNonExemptEncryption: usesEncryption, containsProprietaryCryptography, containsThirdPartyCryptography } = req.body;
 
   if (!accountId) {
     return res.status(400).json({ error: "accountId is required" });
@@ -654,8 +654,8 @@ router.patch("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) =
     }
 
     const declarationId = declData.data.id;
-    const attributes = { usesNonExemptEncryption };
-    if (usesNonExemptEncryption) {
+    const attributes = { usesEncryption };
+    if (usesEncryption) {
       if (containsProprietaryCryptography !== undefined) attributes.containsProprietaryCryptography = containsProprietaryCryptography;
       if (containsThirdPartyCryptography !== undefined) attributes.containsThirdPartyCryptography = containsThirdPartyCryptography;
     }
