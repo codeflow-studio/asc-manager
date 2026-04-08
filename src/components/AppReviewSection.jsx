@@ -14,13 +14,13 @@ const STATUS_ICONS = {
   "Removed": "\u2013",
 };
 
-function formatDate(dateString) {
+export function formatDate(dateString) {
   if (!dateString) return "\u2014";
   const d = new Date(dateString);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function ReviewStatus({ status }) {
+export function ReviewStatus({ status }) {
   const color = STATUS_COLORS[status] || "#8e8e93";
   const icon = STATUS_ICONS[status];
 
@@ -41,7 +41,7 @@ function ReviewStatus({ status }) {
   );
 }
 
-function MessagesTable({ messages }) {
+function MessagesTable({ messages, onViewDetail }) {
   if (messages.length === 0) return null;
 
   return (
@@ -63,7 +63,11 @@ function MessagesTable({ messages }) {
             </thead>
             <tbody>
               {messages.map((msg) => (
-                <tr key={msg.id} className="border-b border-dark-border last:border-b-0">
+                <tr
+                  key={msg.id}
+                  className="border-b border-dark-border last:border-b-0 cursor-pointer hover:bg-dark-hover transition-colors"
+                  onClick={() => onViewDetail(msg.id)}
+                >
                   <td className="px-4 py-3 text-[13px] text-accent font-medium whitespace-nowrap">
                     {formatDate(msg.createdDate)}
                   </td>
@@ -82,7 +86,7 @@ function MessagesTable({ messages }) {
   );
 }
 
-function SubmissionsTable({ submissions }) {
+function SubmissionsTable({ submissions, onViewDetail }) {
   if (submissions.length === 0) return null;
 
   return (
@@ -105,7 +109,11 @@ function SubmissionsTable({ submissions }) {
             </thead>
             <tbody>
               {submissions.map((sub) => (
-                <tr key={sub.id} className="border-b border-dark-border last:border-b-0">
+                <tr
+                  key={sub.id}
+                  className="border-b border-dark-border last:border-b-0 cursor-pointer hover:bg-dark-hover transition-colors"
+                  onClick={() => onViewDetail(sub.id)}
+                >
                   <td className="px-4 py-3 text-[13px] text-accent font-medium whitespace-nowrap">
                     {formatDate(sub.submittedDate)}
                   </td>
@@ -123,7 +131,7 @@ function SubmissionsTable({ submissions }) {
   );
 }
 
-export default function AppReviewSection({ appId, accountId }) {
+export default function AppReviewSection({ appId, accountId, onViewDetail }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -180,8 +188,8 @@ export default function AppReviewSection({ appId, accountId }) {
   return (
     <div className="mb-8">
       <h2 className="text-[13px] font-bold text-dark-text uppercase tracking-wide mb-3">App Review</h2>
-      {hasMessages && <MessagesTable messages={data.messages} />}
-      {hasSubmissions && <SubmissionsTable submissions={data.submissions} />}
+      {hasMessages && <MessagesTable messages={data.messages} onViewDetail={onViewDetail} />}
+      {hasSubmissions && <SubmissionsTable submissions={data.submissions} onViewDetail={onViewDetail} />}
     </div>
   );
 }

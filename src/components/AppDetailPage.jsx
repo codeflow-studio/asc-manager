@@ -16,7 +16,7 @@ function StarRating({ rating }) {
   return <span className="text-warning tracking-wider">{stars.join("")}</span>;
 }
 
-export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion, onViewProducts, onViewXcodeCloud }) {
+export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion, onViewProducts, onViewXcodeCloud, onViewReviewDetail }) {
   const [lookupData, setLookupData] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(true);
   const [descExpanded, setDescExpanded] = useState(false);
@@ -168,7 +168,7 @@ export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion
         )}
 
         {/* App Review */}
-        <AppReviewSection appId={app.id} accountId={app.accountId} />
+        <AppReviewSection appId={app.id} accountId={app.accountId} onViewDetail={onViewReviewDetail} />
 
         {/* Version History */}
         <div>
