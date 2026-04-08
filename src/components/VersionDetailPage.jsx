@@ -3,6 +3,7 @@ import { fetchVersionDetail, fetchVersionBuilds, fetchAttachedBuild, attachBuild
 import { TERMINAL_STATES } from "../constants/index.js";
 import Badge from "./Badge.jsx";
 import BuildSelector from "./BuildSelector.jsx";
+import BuildComplianceModal from "./BuildComplianceModal.jsx";
 import VersionReleaseSection from "./VersionReleaseSection.jsx";
 import PhasedReleaseSection from "./PhasedReleaseSection.jsx";
 import RatingResetSection from "./RatingResetSection.jsx";
@@ -26,6 +27,7 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [complianceBuild, setComplianceBuild] = useState(null);
 
   const refreshDetail = useCallback(async () => {
     try {
@@ -95,6 +97,21 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
       setAttaching(false);
       setAttachingBuildId(null);
     }
+  }
+
+  async function refreshBuilds() {
+    try {
+      const data = await fetchVersionBuilds(app.id, app.accountId, version.versionString);
+      setBuilds(data);
+      // Also refresh attached build to get updated compliance state
+      const attached = await fetchAttachedBuild(app.id, version.id, app.accountId);
+      setAttachedBuild(attached.build);
+    } catch { /* ignore */ }
+  }
+
+  function handleComplianceSuccess() {
+    setComplianceBuild(null);
+    refreshBuilds();
   }
 
   async function handleSubmitForReview() {
@@ -200,6 +217,7 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
             attachingBuildId={attachingBuildId}
             error={buildsError}
             onAttach={handleAttachBuild}
+            onManageCompliance={setComplianceBuild}
             isMobile={isMobile}
           />
         </div>
@@ -288,6 +306,17 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
           </div>
         )}
       </div>
+
+      {complianceBuild && (
+        <BuildComplianceModal
+          build={complianceBuild}
+          appId={app.id}
+          accountId={app.accountId}
+          onClose={() => setComplianceBuild(null)}
+          onSuccess={handleComplianceSuccess}
+          isMobile={isMobile}
+        />
+      )}
     </div>
   );
 }

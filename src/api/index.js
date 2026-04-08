@@ -98,6 +98,30 @@ export async function attachBuild(appId, versionId, buildId, accountId) {
   return res.json();
 }
 
+// ── Build Encryption Compliance ──────────────────────────────────────────────
+
+export async function fetchBuildEncryptionDeclaration(appId, buildId, accountId) {
+  const res = await fetch(`/api/apps/${appId}/builds/${buildId}/encryptionDeclaration?accountId=${accountId}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to fetch encryption declaration: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateBuildEncryptionDeclaration(appId, buildId, data) {
+  const res = await fetch(`/api/apps/${appId}/builds/${buildId}/encryptionDeclaration`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to update encryption declaration: ${res.status}`);
+  }
+  return res.json();
+}
+
 // ── Version Settings (release type, phased release, rating reset) ────────────
 
 export async function updateVersionRelease(appId, versionId, { accountId, releaseType, earliestReleaseDate, resetRatingSummary }) {
