@@ -467,13 +467,14 @@ router.get("/:appId/builds", async (req, res) => {
   const account = accounts.find((a) => a.id === accountId) || accounts[0];
 
   try {
-    const fields = "fields[builds]=version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType,usesNonExemptEncryption";
-    const encryptionInclude = "include=appEncryptionDeclaration&fields[appEncryptionDeclarations]=appEncryptionDeclarationState";
+    const baseFields = "version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType,usesNonExemptEncryption";
     let url;
     if (versionString) {
-      url = `/v1/builds?filter[app]=${appId}&filter[preReleaseVersion.version]=${encodeURIComponent(versionString)}&${fields}&${encryptionInclude}&limit=25`;
+      // /v1/builds supports include
+      url = `/v1/builds?filter[app]=${appId}&filter[preReleaseVersion.version]=${encodeURIComponent(versionString)}&fields[builds]=${baseFields}&include=appEncryptionDeclaration&fields[appEncryptionDeclarations]=appEncryptionDeclarationState&limit=25`;
     } else {
-      url = `/v1/apps/${appId}/builds?${fields}&${encryptionInclude}&limit=25`;
+      // /v1/apps/{id}/builds does NOT support include
+      url = `/v1/apps/${appId}/builds?fields[builds]=${baseFields}&limit=25`;
     }
     const data = await ascFetch(account, url);
 
@@ -497,7 +498,7 @@ router.get("/:appId/builds", async (req, res) => {
       }
       const declId = b.relationships?.appEncryptionDeclaration?.data?.id || null;
       const declAttrs = declId ? includedDeclarations.get(declId) : null;
-      // Derive compliance: if usesNonExemptEncryption is explicitly false, compliance is resolved
+      // Derive compliance from declaration state or build-level usesNonExemptEncryption
       let complianceState = declAttrs?.appEncryptionDeclarationState ?? null;
       if (!complianceState && attrs.usesNonExemptEncryption === false) {
         complianceState = "VALID";
