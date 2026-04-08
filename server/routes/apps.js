@@ -1029,6 +1029,7 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
     apiCache.delete("apps:list");
     apiCache.deleteByPrefix(`apps:versions:${appId}:`);
     apiCache.deleteByPrefix(`apps:review-submissions:${appId}:`);
+    apiCache.deleteByPrefix(`apps:version-detail:${versionId}:`);
 
     res.json({ success: true, versionId });
   } catch (err) {
