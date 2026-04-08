@@ -78,20 +78,32 @@ export default function BuildSelector({ builds, attachedBuild, loading, attachin
                   <span className="text-[11px] text-dark-dim">Min OS {attachedBuild.minOsVersion}</span>
                 )}
               </div>
-              {isMissingCompliance(attachedBuild) && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <svg width="12" height="12" viewBox="0 0 20 20" fill="#ff9500">
-                    <path d="M10 2L1 18h18L10 2zm0 3.5l6.5 11.5h-13L10 5.5zM9 9v4h2V9H9zm0 5v2h2v-2H9z" />
-                  </svg>
-                  <span className="text-[11px] text-[#ff9500] font-medium">Missing Compliance</span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onManageCompliance?.(attachedBuild); }}
-                    className="text-[11px] font-semibold text-accent cursor-pointer bg-transparent border-none font-sans hover:underline ml-1"
-                  >
-                    Manage
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 mt-1">
+                {isMissingCompliance(attachedBuild) ? (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="#ff9500">
+                      <path d="M10 2L1 18h18L10 2zm0 3.5l6.5 11.5h-13L10 5.5zM9 9v4h2V9H9zm0 5v2h2v-2H9z" />
+                    </svg>
+                    <span className="text-[11px] text-[#ff9500] font-medium">Missing Compliance</span>
+                  </>
+                ) : attachedBuild.complianceState === "VALID" ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                    <span className="text-[11px] text-success font-medium">Compliance Ready</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-dark-ghost" />
+                    <span className="text-[11px] text-dark-dim font-medium">Export Compliance</span>
+                  </>
+                )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onManageCompliance?.(attachedBuild); }}
+                  className="text-[11px] font-semibold text-accent cursor-pointer bg-transparent border-none font-sans hover:underline ml-1"
+                >
+                  {isMissingCompliance(attachedBuild) ? "Manage" : "Edit"}
+                </button>
+              </div>
             </div>
             <button
               onClick={() => setShowModal(true)}

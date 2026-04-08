@@ -211,7 +211,10 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
           )}
           <BuildSelector
             builds={builds}
-            attachedBuild={attachedBuild === undefined ? null : attachedBuild}
+            attachedBuild={attachedBuild === undefined ? null : attachedBuild && {
+              ...attachedBuild,
+              complianceState: attachedBuild.complianceState ?? builds.find((b) => b.id === attachedBuild.id)?.complianceState ?? null,
+            }}
             loading={buildsLoading || attachedBuild === undefined}
             attaching={attaching}
             attachingBuildId={attachingBuildId}
