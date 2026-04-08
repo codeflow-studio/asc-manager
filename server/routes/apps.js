@@ -871,6 +871,19 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   }
 
   try {
+    // Check if a submission already exists for this version
+    try {
+      await ascFetch(account, `/v1/appStoreVersions/${versionId}/appStoreVersionSubmission`);
+      // Submission already exists -- clear caches and return success
+      apiCache.delete("apps:list");
+      apiCache.deleteByPrefix(`apps:versions:${appId}:`);
+      apiCache.deleteByPrefix(`apps:review-submissions:${appId}:`);
+      res.json({ success: true, versionId, alreadySubmitted: true });
+      return;
+    } catch {
+      // No existing submission -- proceed to create one
+    }
+
     await ascFetch(account, "/v1/appStoreVersionSubmissions", {
       method: "POST",
       body: {
