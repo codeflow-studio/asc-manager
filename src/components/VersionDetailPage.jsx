@@ -101,7 +101,7 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await submitForReview(app.id, version.id, app.accountId);
+      await submitForReview(app.id, version.id, app.accountId, detail.platform);
       setShowSubmitConfirm(false);
       await refreshDetail();
     } catch (err) {

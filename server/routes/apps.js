@@ -858,10 +858,13 @@ router.get("/:appId/review-submissions", async (req, res) => {
 
 router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   const { appId, versionId } = req.params;
-  const { accountId } = req.body;
+  const { accountId, platform } = req.body;
 
   if (!accountId) {
     return res.status(400).json({ error: "accountId is required" });
+  }
+  if (!platform) {
+    return res.status(400).json({ error: "platform is required" });
   }
 
   const accounts = getAccounts();
@@ -871,14 +874,51 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   }
 
   try {
-    await ascFetch(account, "/v1/appStoreVersionSubmissions", {
+    // Step 1: Check for existing READY_FOR_REVIEW submission, or create one
+    let submissionId;
+    const existing = await ascFetch(account,
+      `/v1/apps/${appId}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&filter[platform]=${platform}`
+    );
+    if (existing.data?.length > 0) {
+      submissionId = existing.data[0].id;
+    } else {
+      const created = await ascFetch(account, "/v1/reviewSubmissions", {
+        method: "POST",
+        body: {
+          data: {
+            type: "reviewSubmissions",
+            attributes: { platform },
+            relationships: {
+              app: { data: { type: "apps", id: appId } },
+            },
+          },
+        },
+      });
+      submissionId = created.data.id;
+    }
+
+    // Step 2: Add the app store version as a review submission item
+    await ascFetch(account, "/v1/reviewSubmissionItems", {
       method: "POST",
       body: {
         data: {
-          type: "appStoreVersionSubmissions",
+          type: "reviewSubmissionItems",
           relationships: {
+            reviewSubmission: { data: { type: "reviewSubmissions", id: submissionId } },
             appStoreVersion: { data: { type: "appStoreVersions", id: versionId } },
           },
+        },
+      },
+    });
+
+    // Step 3: Confirm the submission
+    await ascFetch(account, `/v1/reviewSubmissions/${submissionId}`, {
+      method: "PATCH",
+      body: {
+        data: {
+          type: "reviewSubmissions",
+          id: submissionId,
+          attributes: { submitted: true },
         },
       },
     });
@@ -889,14 +929,6 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
 
     res.json({ success: true, versionId });
   } catch (err) {
-    // If a submission already exists, the API rejects CREATE -- treat as success
-    if (err.message.includes("does not allow 'CREATE'")) {
-      apiCache.delete("apps:list");
-      apiCache.deleteByPrefix(`apps:versions:${appId}:`);
-      apiCache.deleteByPrefix(`apps:review-submissions:${appId}:`);
-      res.json({ success: true, versionId, alreadySubmitted: true });
-      return;
-    }
     console.error(`Failed to submit version ${versionId} for review:`, err.message);
     res.status(502).json({ error: err.message });
   }

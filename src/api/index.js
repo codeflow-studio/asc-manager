@@ -50,11 +50,11 @@ export async function createVersion(appId, accountId, versionString, platform) {
   return res.json();
 }
 
-export async function submitForReview(appId, versionId, accountId) {
+export async function submitForReview(appId, versionId, accountId, platform) {
   const res = await fetch(`/api/apps/${appId}/versions/${versionId}/submit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ accountId }),
+    body: JSON.stringify({ accountId, platform }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
