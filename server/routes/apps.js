@@ -871,19 +871,6 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   }
 
   try {
-    // Check if a submission already exists for this version
-    try {
-      await ascFetch(account, `/v1/appStoreVersions/${versionId}/appStoreVersionSubmission`);
-      // Submission already exists -- clear caches and return success
-      apiCache.delete("apps:list");
-      apiCache.deleteByPrefix(`apps:versions:${appId}:`);
-      apiCache.deleteByPrefix(`apps:review-submissions:${appId}:`);
-      res.json({ success: true, versionId, alreadySubmitted: true });
-      return;
-    } catch {
-      // No existing submission -- proceed to create one
-    }
-
     await ascFetch(account, "/v1/appStoreVersionSubmissions", {
       method: "POST",
       body: {
@@ -902,6 +889,14 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
 
     res.json({ success: true, versionId });
   } catch (err) {
+    // If a submission already exists, the API rejects CREATE -- treat as success
+    if (err.message.includes("does not allow 'CREATE'")) {
+      apiCache.delete("apps:list");
+      apiCache.deleteByPrefix(`apps:versions:${appId}:`);
+      apiCache.deleteByPrefix(`apps:review-submissions:${appId}:`);
+      res.json({ success: true, versionId, alreadySubmitted: true });
+      return;
+    }
     console.error(`Failed to submit version ${versionId} for review:`, err.message);
     res.status(502).json({ error: err.message });
   }
