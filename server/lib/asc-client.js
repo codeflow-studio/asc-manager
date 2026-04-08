@@ -21,6 +21,16 @@ export async function ascFetch(account, path, options = {}) {
       if (parsed.errors?.[0]?.detail) {
         detail = parsed.errors[0].detail;
       }
+      const associatedErrors = parsed.errors?.[0]?.associated_errors;
+      if (associatedErrors) {
+        const details = Object.values(associatedErrors)
+          .flat()
+          .map(e => e.detail)
+          .filter(Boolean);
+        if (details.length > 0) {
+          detail += ": " + details.join("; ");
+        }
+      }
     } catch {}
     throw new Error(detail);
   }
