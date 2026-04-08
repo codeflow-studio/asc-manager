@@ -467,8 +467,8 @@ router.get("/:appId/builds", async (req, res) => {
   const account = accounts.find((a) => a.id === accountId) || accounts[0];
 
   try {
-    const fields = "fields[builds]=version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType";
-    const encryptionInclude = "include=appEncryptionDeclaration&fields[appEncryptionDeclarations]=usesNonExemptEncryption,appEncryptionDeclarationState";
+    const fields = "fields[builds]=version,processingState,uploadedDate,iconAssetToken,minOsVersion,buildAudienceType,usesNonExemptEncryption";
+    const encryptionInclude = "include=appEncryptionDeclaration&fields[appEncryptionDeclarations]=appEncryptionDeclarationState";
     let url;
     if (versionString) {
       url = `/v1/builds?filter[app]=${appId}&filter[preReleaseVersion.version]=${encodeURIComponent(versionString)}&${fields}&${encryptionInclude}&limit=25`;
@@ -497,6 +497,11 @@ router.get("/:appId/builds", async (req, res) => {
       }
       const declId = b.relationships?.appEncryptionDeclaration?.data?.id || null;
       const declAttrs = declId ? includedDeclarations.get(declId) : null;
+      // Derive compliance: if usesNonExemptEncryption is explicitly false, compliance is resolved
+      let complianceState = declAttrs?.appEncryptionDeclarationState ?? null;
+      if (!complianceState && attrs.usesNonExemptEncryption === false) {
+        complianceState = "VALID";
+      }
       return {
         id: b.id,
         version: attrs.version,
@@ -506,8 +511,8 @@ router.get("/:appId/builds", async (req, res) => {
         buildAudienceType: attrs.buildAudienceType,
         iconUrl,
         encryptionDeclarationId: declId,
-        usesNonExemptEncryption: declAttrs?.usesNonExemptEncryption ?? null,
-        complianceState: declAttrs?.appEncryptionDeclarationState ?? null,
+        usesNonExemptEncryption: attrs.usesNonExemptEncryption ?? null,
+        complianceState,
       };
     }).sort((a, b) => new Date(b.uploadedDate) - new Date(a.uploadedDate));
 
@@ -533,7 +538,7 @@ router.get("/:appId/versions/:versionId/build", async (req, res) => {
   try {
     const data = await ascFetch(
       account,
-      `/v1/appStoreVersions/${versionId}/build?fields[builds]=version,processingState,uploadedDate,minOsVersion`
+      `/v1/appStoreVersions/${versionId}/build?fields[builds]=version,processingState,uploadedDate,minOsVersion,usesNonExemptEncryption`
     );
 
     const build = data.data
@@ -543,6 +548,7 @@ router.get("/:appId/versions/:versionId/build", async (req, res) => {
           processingState: data.data.attributes.processingState,
           uploadedDate: data.data.attributes.uploadedDate,
           minOsVersion: data.data.attributes.minOsVersion,
+          usesNonExemptEncryption: data.data.attributes.usesNonExemptEncryption ?? null,
         }
       : null;
 
@@ -609,7 +615,7 @@ router.get("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) => 
   try {
     const data = await ascFetch(
       account,
-      `/v1/builds/${buildId}/appEncryptionDeclaration?fields[appEncryptionDeclarations]=usesNonExemptEncryption,appEncryptionDeclarationState,containsProprietaryCryptography,containsThirdPartyCryptography,availableOnFrenchStore,codeValue,platform`
+      `/v1/builds/${buildId}/appEncryptionDeclaration?fields[appEncryptionDeclarations]=appEncryptionDeclarationState,containsProprietaryCryptography,containsThirdPartyCryptography,availableOnFrenchStore,codeValue,platform`
     );
 
     const decl = data.data
@@ -630,7 +636,7 @@ router.get("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) => 
 
 router.patch("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) => {
   const { appId, buildId } = req.params;
-  const { accountId, usesNonExemptEncryption, containsProprietaryCryptography, containsThirdPartyCryptography } = req.body;
+  const { accountId, containsProprietaryCryptography, containsThirdPartyCryptography } = req.body;
 
   if (!accountId) {
     return res.status(400).json({ error: "accountId is required" });
@@ -643,36 +649,61 @@ router.patch("/:appId/builds/:buildId/encryptionDeclaration", async (req, res) =
   }
 
   try {
-    // Fetch the existing declaration ID
-    const declData = await ascFetch(
-      account,
-      `/v1/builds/${buildId}/appEncryptionDeclaration?fields[appEncryptionDeclarations]=appEncryptionDeclarationState`
-    );
+    const usesEncryption = containsProprietaryCryptography || containsThirdPartyCryptography;
 
-    if (!declData.data) {
-      return res.status(404).json({ error: "No encryption declaration found for this build" });
-    }
-
-    const declarationId = declData.data.id;
-    const attributes = { usesNonExemptEncryption };
-    if (usesNonExemptEncryption) {
-      if (containsProprietaryCryptography !== undefined) attributes.containsProprietaryCryptography = containsProprietaryCryptography;
-      if (containsThirdPartyCryptography !== undefined) attributes.containsThirdPartyCryptography = containsThirdPartyCryptography;
-    }
-
-    await ascFetch(account, `/v1/appEncryptionDeclarations/${declarationId}`, {
-      method: "PATCH",
-      body: {
-        data: {
-          type: "appEncryptionDeclarations",
-          id: declarationId,
-          attributes,
+    if (!usesEncryption) {
+      // "No encryption" — set usesNonExemptEncryption=false on the build directly
+      await ascFetch(account, `/v1/builds/${buildId}`, {
+        method: "PATCH",
+        body: {
+          data: {
+            type: "builds",
+            id: buildId,
+            attributes: { usesNonExemptEncryption: false },
+          },
         },
-      },
-    });
+      });
+    } else {
+      // "Yes encryption" — create a declaration and link it to the build
+      const declAttrs = {
+        containsProprietaryCryptography,
+        containsThirdPartyCryptography,
+        availableOnFrenchStore: false,
+        appDescription: "N/A",
+      };
+      const created = await ascFetch(account, `/v1/appEncryptionDeclarations`, {
+        method: "POST",
+        body: {
+          data: {
+            type: "appEncryptionDeclarations",
+            attributes: declAttrs,
+            relationships: {
+              app: { data: { type: "apps", id: appId } },
+            },
+          },
+        },
+      });
+      // Link declaration to build via PATCH on the build
+      await ascFetch(account, `/v1/builds/${buildId}`, {
+        method: "PATCH",
+        body: {
+          data: {
+            type: "builds",
+            id: buildId,
+            attributes: { usesNonExemptEncryption: true },
+            relationships: {
+              appEncryptionDeclaration: {
+                data: { type: "appEncryptionDeclarations", id: created.data.id },
+              },
+            },
+          },
+        },
+      });
+    }
 
     apiCache.deleteByPrefix(`apps:build-encryption:${buildId}:`);
     apiCache.deleteByPrefix(`apps:builds:${appId}:`);
+    apiCache.deleteByPrefix(`apps:version-build:`);
 
     res.json({ success: true });
   } catch (err) {
@@ -955,6 +986,180 @@ router.get("/:appId/review-submissions", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error(`Failed to fetch review submissions for app ${appId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Review Submission Detail ──────────────────────────────────────────────
+
+const ITEM_STATE_DISPLAY = {
+  READY_FOR_REVIEW: "Ready for Review",
+  ACCEPTED: "Accepted",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  REMOVED: "Removed",
+};
+
+function parseReviewSubmissionDetail(data) {
+  const includedMap = new Map();
+  if (data.included) {
+    for (const inc of data.included) {
+      includedMap.set(`${inc.type}:${inc.id}`, inc);
+    }
+  }
+
+  const submission = data.data;
+  const attrs = submission.attributes;
+
+  // Resolve version string
+  let versions = null;
+  const versionRef = submission.relationships?.appStoreVersionForReview?.data;
+  if (versionRef) {
+    const ver = includedMap.get(`${versionRef.type}:${versionRef.id}`);
+    if (ver) {
+      const platform = ver.attributes.platform === "IOS" ? "iOS" : ver.attributes.platform === "MAC_OS" ? "macOS" : ver.attributes.platform;
+      versions = `${platform} ${ver.attributes.versionString}`;
+    }
+  }
+
+  // Resolve actors
+  function resolveActor(relationshipName) {
+    const ref = submission.relationships?.[relationshipName]?.data;
+    if (!ref) return null;
+    const actor = includedMap.get(`${ref.type}:${ref.id}`);
+    if (!actor) return null;
+    return [actor.attributes.userFirstName, actor.attributes.userLastName].filter(Boolean).join(" ");
+  }
+
+  // Resolve items
+  const itemRefs = submission.relationships?.items?.data || [];
+  const items = itemRefs.map((ref) => {
+    const item = includedMap.get(`${ref.type}:${ref.id}`);
+    if (!item) return { id: ref.id, state: "UNKNOWN", displayState: "Unknown", type: "unknown" };
+
+    const itemState = item.attributes.state;
+    const itemType = ["appStoreVersion", "appCustomProductPage", "appStoreVersionExperiment", "appEvent"]
+      .find((rel) => item.relationships?.[rel]?.data) || "appStoreVersion";
+
+    let versionString = null;
+    let itemPlatform = null;
+    let appStoreState = null;
+    const itemVersionRef = item.relationships?.appStoreVersion?.data;
+    if (itemVersionRef) {
+      const ver = includedMap.get(`${itemVersionRef.type}:${itemVersionRef.id}`);
+      if (ver) {
+        versionString = ver.attributes.versionString;
+        itemPlatform = ver.attributes.platform === "IOS" ? "iOS" : ver.attributes.platform === "MAC_OS" ? "macOS" : ver.attributes.platform;
+        appStoreState = ver.attributes.appStoreState;
+      }
+    }
+
+    // If no version from items, fall back to the submission-level version
+    if (!versionString && versionRef) {
+      const ver = includedMap.get(`${versionRef.type}:${versionRef.id}`);
+      if (ver) {
+        versionString = ver.attributes.versionString;
+        itemPlatform = ver.attributes.platform === "IOS" ? "iOS" : ver.attributes.platform === "MAC_OS" ? "macOS" : ver.attributes.platform;
+        appStoreState = ver.attributes.appStoreState;
+      }
+    }
+
+    return {
+      id: item.id,
+      state: itemState,
+      displayState: ITEM_STATE_DISPLAY[itemState] || itemState,
+      type: itemType,
+      versionString,
+      platform: itemPlatform,
+      appStoreState,
+    };
+  });
+
+  // If no version resolved yet, try from items
+  if (!versions && items.length > 0) {
+    const versionStrings = new Set(items.filter((i) => i.versionString && i.platform).map((i) => `${i.platform} ${i.versionString}`));
+    if (versionStrings.size > 1) versions = "Multiple Versions";
+    else if (versionStrings.size === 1) versions = [...versionStrings][0];
+  }
+
+  const displayStatus = REVIEW_STATE_DISPLAY[attrs.state] || attrs.state;
+  const platform = attrs.platform === "IOS" ? "iOS" : attrs.platform === "MAC_OS" ? "macOS" : attrs.platform;
+
+  return {
+    id: submission.id,
+    state: attrs.state,
+    displayStatus,
+    platform,
+    submittedDate: attrs.submittedDate,
+    versions: versions || "Unknown",
+    submittedBy: resolveActor("submittedByActor"),
+    lastUpdatedBy: resolveActor("lastUpdatedByActor"),
+    items,
+  };
+}
+
+router.get("/:appId/review-submissions/:submissionId", async (req, res) => {
+  const { appId, submissionId } = req.params;
+  const { accountId } = req.query;
+
+  const cacheKey = `apps:review-submission-detail:${submissionId}:${accountId || "default"}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId) || accounts[0];
+
+  try {
+    const submissionUrl = `/v1/reviewSubmissions/${submissionId}`
+      + "?include=items,appStoreVersionForReview,submittedByActor,lastUpdatedByActor"
+      + "&fields[reviewSubmissions]=submittedDate,state,platform"
+      + "&fields[reviewSubmissionItems]=state,appStoreVersion"
+      + "&fields[appStoreVersions]=versionString,platform,appStoreState"
+      + "&fields[actors]=userFirstName,userLastName";
+
+    const itemsUrl = `/v1/reviewSubmissions/${submissionId}/items`
+      + "?include=appStoreVersion"
+      + "&fields[reviewSubmissionItems]=state,appStoreVersion"
+      + "&fields[appStoreVersions]=versionString,platform,appStoreState";
+
+    const [submissionData, itemsData] = await Promise.all([
+      ascFetch(account, submissionUrl),
+      ascFetch(account, itemsUrl),
+    ]);
+
+    // Replace item objects with richer ones from items endpoint (they carry appStoreVersion relationship)
+    if (!submissionData.included) submissionData.included = [];
+    if (itemsData.data) {
+      for (const item of itemsData.data) {
+        const idx = submissionData.included.findIndex((e) => e.type === item.type && e.id === item.id);
+        if (idx >= 0) submissionData.included[idx] = item;
+        else submissionData.included.push(item);
+      }
+    }
+    // Merge included version objects from items endpoint
+    if (itemsData.included) {
+      for (const inc of itemsData.included) {
+        const exists = submissionData.included.some((e) => e.type === inc.type && e.id === inc.id);
+        if (!exists) submissionData.included.push(inc);
+      }
+    }
+
+    // DEBUG: log raw API responses to understand structure
+    console.log("=== SUBMISSION DATA ===");
+    console.log("data.relationships:", JSON.stringify(submissionData.data?.relationships, null, 2));
+    console.log("included types:", submissionData.included?.map(i => `${i.type}:${i.id}`));
+    console.log("=== ITEMS DATA ===");
+    console.log("itemsData.data:", JSON.stringify(itemsData.data, null, 2));
+    console.log("itemsData.included:", JSON.stringify(itemsData.included, null, 2));
+    console.log("=== MERGED INCLUDED ===");
+    console.log("all included:", submissionData.included?.map(i => `${i.type}:${i.id} rels=${Object.keys(i.relationships || {}).join(",")}`));
+
+    const result = parseReviewSubmissionDetail(submissionData);
+
+    apiCache.set(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error(`Failed to fetch review submission detail ${submissionId}:`, err.message);
     res.status(502).json({ error: err.message });
   }
 });

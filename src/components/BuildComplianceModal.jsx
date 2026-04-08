@@ -61,12 +61,12 @@ export default function BuildComplianceModal({ build, appId, accountId, onClose,
     setSaving(true);
     setError(null);
     try {
-      const data = { accountId, usesNonExemptEncryption: usesEncryption };
-      if (usesEncryption && selectedAlgorithm) {
-        const algo = ALGORITHM_OPTIONS.find((a) => a.id === selectedAlgorithm);
-        data.containsProprietaryCryptography = algo.proprietary;
-        data.containsThirdPartyCryptography = algo.thirdParty;
-      }
+      const algo = ALGORITHM_OPTIONS.find((a) => a.id === selectedAlgorithm);
+      const data = {
+        accountId,
+        containsProprietaryCryptography: algo?.proprietary ?? false,
+        containsThirdPartyCryptography: algo?.thirdParty ?? false,
+      };
       await updateBuildEncryptionDeclaration(appId, build.id, data);
       onSuccess();
     } catch (err) {
@@ -84,7 +84,8 @@ export default function BuildComplianceModal({ build, appId, accountId, onClose,
     setError(null);
     updateBuildEncryptionDeclaration(appId, build.id, {
       accountId,
-      usesNonExemptEncryption: false,
+      containsProprietaryCryptography: false,
+      containsThirdPartyCryptography: false,
     })
       .then(() => onSuccess())
       .catch((err) => {
