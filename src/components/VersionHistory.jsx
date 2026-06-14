@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchVersions, createVersion } from "../api/index.js";
-import { TERMINAL_STATES } from "../constants/index.js";
+import { TERMINAL_STATES, RELEASED_STATES } from "../constants/index.js";
 import Badge from "./Badge.jsx";
 
 export default function VersionHistory({ appId, accountId, onSelectVersion }) {
@@ -168,8 +168,8 @@ export default function VersionHistory({ appId, accountId, onSelectVersion }) {
       ) : (
         <div className="space-y-1.5">
           {versions.map((v) => {
-            const isTerminal = TERMINAL_STATES.has(v.appStoreState);
-            const isClickable = !isTerminal && onSelectVersion;
+            const isReleased = RELEASED_STATES.has(v.appStoreState);
+            const isClickable = !isReleased && onSelectVersion;
 
             return (
               <div

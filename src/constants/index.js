@@ -19,6 +19,17 @@ export const TERMINAL_STATES = new Set([
   "REJECTED",
 ]);
 
+export const RELEASED_STATES = new Set([
+  "READY_FOR_SALE",
+  "REMOVED_FROM_SALE",
+]);
+
+export const SUBMITTABLE_STATES = new Set([
+  "PREPARE_FOR_SUBMISSION",
+  "REJECTED",
+  "DEVELOPER_REJECTED",
+]);
+
 export const RELEASE_TYPES = [
   { value: "MANUAL", label: "Manually release this version" },
   { value: "AFTER_APPROVAL", label: "Automatically release this version" },

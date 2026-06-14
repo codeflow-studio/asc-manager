@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchVersionDetail, fetchVersionBuilds, fetchAttachedBuild, attachBuild, submitForReview } from "../api/index.js";
-import { TERMINAL_STATES } from "../constants/index.js";
+import { RELEASED_STATES, SUBMITTABLE_STATES } from "../constants/index.js";
 import Badge from "./Badge.jsx";
 import BuildSelector from "./BuildSelector.jsx";
 import BuildComplianceModal from "./BuildComplianceModal.jsx";
@@ -144,6 +144,8 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
   }
 
   const v = detail || version;
+  const isResubmit = detail && (detail.appStoreState === "REJECTED" || detail.appStoreState === "DEVELOPER_REJECTED");
+  const canSubmit = detail && SUBMITTABLE_STATES.has(detail.appStoreState) && attachedBuild;
 
   const detailItems = detail ? [
     ["State", <Badge key="badge" status={detail.appStoreState} version={detail.versionString} platform={detail.platform} />],
@@ -225,23 +227,29 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
           />
         </div>
 
-        {/* Submit for Review */}
-        {detail && detail.appStoreState === "PREPARE_FOR_SUBMISSION" && attachedBuild && (
+        {/* Submit / Resubmit for Review */}
+        {canSubmit && (
           <div className="mt-6">
             {submitError && (
               <div className="text-[11px] text-danger font-medium mb-3">{submitError}</div>
             )}
             {showSubmitConfirm ? (
               <div className="border border-accent/30 bg-accent/5 rounded-[10px] px-4 py-3">
-                <div className="text-[13px] text-dark-text font-medium mb-1">Submit version {v.versionString} for App Review?</div>
-                <div className="text-[11px] text-dark-dim mb-3">This will move the version to "Waiting for Review". This action cannot be undone.</div>
+                <div className="text-[13px] text-dark-text font-medium mb-1">
+                  {isResubmit ? "Resubmit" : "Submit"} version {v.versionString} for App Review?
+                </div>
+                <div className="text-[11px] text-dark-dim mb-3">
+                  {isResubmit
+                    ? "Make sure you have attached a new build and updated any metadata or screenshots before resubmitting. This will move the version to \"Waiting for Review\"."
+                    : "This will move the version to \"Waiting for Review\". This action cannot be undone."}
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleSubmitForReview}
                     disabled={submitting}
                     className="px-4 py-1.5 rounded-lg text-[12px] font-semibold bg-accent text-white border-none cursor-pointer font-sans hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {submitting ? "Submitting..." : "Confirm Submit"}
+                    {submitting ? (isResubmit ? "Resubmitting..." : "Submitting...") : (isResubmit ? "Confirm Resubmit" : "Confirm Submit")}
                   </button>
                   <button
                     onClick={() => { setShowSubmitConfirm(false); setSubmitError(null); }}
@@ -257,7 +265,7 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
                 onClick={() => setShowSubmitConfirm(true)}
                 className="w-full px-4 py-3 rounded-[10px] text-[13px] font-semibold bg-accent text-white border-none cursor-pointer font-sans hover:brightness-110 transition-all"
               >
-                Submit for Review
+                {isResubmit ? "Resubmit for Review" : "Submit for Review"}
               </button>
             )}
           </div>
@@ -280,7 +288,7 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
         />
 
         {/* Version Settings (only for non-terminal versions) */}
-        {detail && !TERMINAL_STATES.has(detail.appStoreState) && (
+        {detail && !RELEASED_STATES.has(detail.appStoreState) && (
           <div className="mt-8">
             <VersionReleaseSection
               appId={app.id}

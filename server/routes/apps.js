@@ -1130,6 +1130,95 @@ router.get("/:appId/review-submissions/:submissionId", async (req, res) => {
   }
 });
 
+async function findUnresolvedSubmissionForVersion(account, appId, versionId) {
+  const data = await ascFetch(
+    account,
+    buildReviewSubmissionUrl(appId, { states: ["UNRESOLVED_ISSUES"], limit: 25 })
+  );
+
+  const includedMap = new Map();
+  if (data.included) {
+    for (const inc of data.included) {
+      includedMap.set(`${inc.type}:${inc.id}`, inc);
+    }
+  }
+
+  for (const submission of data.data || []) {
+    const versionRef = submission.relationships?.appStoreVersionForReview?.data;
+    if (versionRef?.id === versionId) {
+      return submission;
+    }
+
+    const itemRefs = submission.relationships?.items?.data || [];
+    for (const ref of itemRefs) {
+      const item = includedMap.get(`${ref.type}:${ref.id}`);
+      const itemVersionRef = item?.relationships?.appStoreVersion?.data;
+      if (itemVersionRef?.id === versionId) {
+        return submission;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function submitVersionForReview(account, appId, versionId, platform) {
+  let submissionId;
+  const existing = await ascFetch(account,
+    `/v1/apps/${appId}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&filter[platform]=${platform}`
+  );
+  if (existing.data?.length > 0) {
+    submissionId = existing.data[0].id;
+  } else {
+    const created = await ascFetch(account, "/v1/reviewSubmissions", {
+      method: "POST",
+      body: {
+        data: {
+          type: "reviewSubmissions",
+          attributes: { platform },
+          relationships: {
+            app: { data: { type: "apps", id: appId } },
+          },
+        },
+      },
+    });
+    submissionId = created.data.id;
+  }
+
+  await ascFetch(account, "/v1/reviewSubmissionItems", {
+    method: "POST",
+    body: {
+      data: {
+        type: "reviewSubmissionItems",
+        relationships: {
+          reviewSubmission: { data: { type: "reviewSubmissions", id: submissionId } },
+          appStoreVersion: { data: { type: "appStoreVersions", id: versionId } },
+        },
+      },
+    },
+  });
+
+  await ascFetch(account, `/v1/reviewSubmissions/${submissionId}`, {
+    method: "PATCH",
+    body: {
+      data: {
+        type: "reviewSubmissions",
+        id: submissionId,
+        attributes: { submitted: true },
+      },
+    },
+  });
+
+  return submissionId;
+}
+
+function invalidateSubmitCaches(appId, versionId) {
+  apiCache.delete("apps:list");
+  apiCache.deleteByPrefix(`apps:versions:${appId}:`);
+  apiCache.deleteByPrefix(`apps:review-submissions:${appId}:`);
+  apiCache.deleteByPrefix(`apps:version-detail:${versionId}:`);
+}
+
 router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   const { appId, versionId } = req.params;
   const { accountId, platform } = req.body;
@@ -1148,60 +1237,43 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   }
 
   try {
-    // Step 1: Check for existing READY_FOR_REVIEW submission, or create one
-    let submissionId;
-    const existing = await ascFetch(account,
-      `/v1/apps/${appId}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&filter[platform]=${platform}`
+    const versionData = await ascFetch(
+      account,
+      `/v1/appStoreVersions/${versionId}?fields[appStoreVersions]=appStoreState,platform`
     );
-    if (existing.data?.length > 0) {
-      submissionId = existing.data[0].id;
-    } else {
-      const created = await ascFetch(account, "/v1/reviewSubmissions", {
-        method: "POST",
+    const appStoreState = versionData.data.attributes.appStoreState;
+
+    if (appStoreState === "REJECTED") {
+      const submission = await findUnresolvedSubmissionForVersion(account, appId, versionId);
+      if (!submission) {
+        return res.status(404).json({
+          error: "No unresolved review submission found for this version",
+        });
+      }
+
+      await ascFetch(account, `/v1/reviewSubmissions/${submission.id}`, {
+        method: "PATCH",
         body: {
           data: {
             type: "reviewSubmissions",
-            attributes: { platform },
-            relationships: {
-              app: { data: { type: "apps", id: appId } },
-            },
+            id: submission.id,
+            attributes: { submitted: true },
           },
         },
       });
-      submissionId = created.data.id;
+
+      invalidateSubmitCaches(appId, versionId);
+      return res.json({ success: true, versionId, resubmitted: true });
     }
 
-    // Step 2: Add the app store version as a review submission item
-    await ascFetch(account, "/v1/reviewSubmissionItems", {
-      method: "POST",
-      body: {
-        data: {
-          type: "reviewSubmissionItems",
-          relationships: {
-            reviewSubmission: { data: { type: "reviewSubmissions", id: submissionId } },
-            appStoreVersion: { data: { type: "appStoreVersions", id: versionId } },
-          },
-        },
-      },
-    });
+    if (appStoreState !== "PREPARE_FOR_SUBMISSION" && appStoreState !== "DEVELOPER_REJECTED") {
+      return res.status(409).json({
+        error: `Version cannot be submitted from state: ${appStoreState}`,
+      });
+    }
 
-    // Step 3: Confirm the submission
-    await ascFetch(account, `/v1/reviewSubmissions/${submissionId}`, {
-      method: "PATCH",
-      body: {
-        data: {
-          type: "reviewSubmissions",
-          id: submissionId,
-          attributes: { submitted: true },
-        },
-      },
-    });
-
-    apiCache.delete("apps:list");
-    apiCache.deleteByPrefix(`apps:versions:${appId}:`);
-    apiCache.deleteByPrefix(`apps:review-submissions:${appId}:`);
-    apiCache.deleteByPrefix(`apps:version-detail:${versionId}:`);
-
+    await submitVersionForReview(account, appId, versionId, platform);
+    invalidateSubmitCaches(appId, versionId);
     res.json({ success: true, versionId });
   } catch (err) {
     console.error(`Failed to submit version ${versionId} for review:`, err.message);
