@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchVersionDetail, fetchVersionBuilds, fetchAttachedBuild, attachBuild, submitForReview } from "../api/index.js";
-import { RELEASED_STATES, SUBMITTABLE_STATES } from "../constants/index.js";
+import { RELEASED_STATES, SUBMITTABLE_STATES, RELEASABLE_STATES } from "../constants/index.js";
 import Badge from "./Badge.jsx";
 import BuildSelector from "./BuildSelector.jsx";
 import BuildComplianceModal from "./BuildComplianceModal.jsx";
@@ -9,6 +9,7 @@ import PhasedReleaseSection from "./PhasedReleaseSection.jsx";
 import RatingResetSection from "./RatingResetSection.jsx";
 import ScreenshotsSection from "./ScreenshotsSection.jsx";
 import VersionLocalizationsSection from "./VersionLocalizationsSection.jsx";
+import ReleaseVersionButton from "./ReleaseVersionButton.jsx";
 
 export default function VersionDetailPage({ app, version, accounts, isMobile }) {
   const [detail, setDetail] = useState(null);
@@ -146,6 +147,7 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
   const v = detail || version;
   const isResubmit = detail && (detail.appStoreState === "REJECTED" || detail.appStoreState === "DEVELOPER_REJECTED");
   const canSubmit = detail && SUBMITTABLE_STATES.has(detail.appStoreState) && attachedBuild;
+  const canRelease = detail && RELEASABLE_STATES.has(detail.appStoreState);
 
   const detailItems = detail ? [
     ["State", <Badge key="badge" status={detail.appStoreState} version={detail.versionString} platform={detail.platform} />],
@@ -226,6 +228,20 @@ export default function VersionDetailPage({ app, version, accounts, isMobile }) 
             isMobile={isMobile}
           />
         </div>
+
+        {/* Release to App Store */}
+        {canRelease && (
+          <div className="mt-6">
+            <ReleaseVersionButton
+              appId={app.id}
+              versionId={version.id}
+              accountId={app.accountId}
+              versionString={detail.versionString}
+              platform={detail.platform}
+              onSuccess={refreshDetail}
+            />
+          </div>
+        )}
 
         {/* Submit / Resubmit for Review */}
         {canSubmit && (

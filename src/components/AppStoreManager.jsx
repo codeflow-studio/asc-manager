@@ -249,6 +249,11 @@ export default function AppStoreManager() {
     }
   }, []);
 
+  const refreshApps = useCallback(() => {
+    setSyncing(true);
+    return loadData(true);
+  }, [loadData]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -479,6 +484,7 @@ export default function AppStoreManager() {
           onViewXcodeCloud={() => navigateToXcodeCloud(selectedApp)}
           onViewAnalytics={() => navigateToAnalytics(selectedApp)}
           onViewReviewDetail={(submissionId) => navigateToReviewDetail(submissionId, selectedApp)}
+          onAppRefresh={refreshApps}
         />
       </div>
     );

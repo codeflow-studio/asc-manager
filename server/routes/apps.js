@@ -1281,4 +1281,57 @@ router.post("/:appId/versions/:versionId/submit", async (req, res) => {
   }
 });
 
+router.post("/:appId/versions/:versionId/release", async (req, res) => {
+  const { appId, versionId } = req.params;
+  const { accountId } = req.body;
+
+  if (!accountId) {
+    return res.status(400).json({ error: "accountId is required" });
+  }
+
+  const accounts = getAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) {
+    return res.status(400).json({ error: "Account not found" });
+  }
+
+  try {
+    const versionData = await ascFetch(
+      account,
+      `/v1/appStoreVersions/${versionId}?fields[appStoreVersions]=appStoreState`
+    );
+    const appStoreState = versionData.data.attributes.appStoreState;
+
+    if (appStoreState !== "PENDING_DEVELOPER_RELEASE") {
+      return res.status(409).json({
+        error: `Version cannot be released from state: ${appStoreState}`,
+      });
+    }
+
+    const releaseData = await ascFetch(account, "/v1/appStoreVersionReleaseRequests", {
+      method: "POST",
+      body: {
+        data: {
+          type: "appStoreVersionReleaseRequests",
+          relationships: {
+            appStoreVersion: {
+              data: { id: versionId, type: "appStoreVersions" },
+            },
+          },
+        },
+      },
+    });
+
+    invalidateSubmitCaches(appId, versionId);
+    res.json({
+      success: true,
+      versionId,
+      releaseRequestId: releaseData.data.id,
+    });
+  } catch (err) {
+    console.error(`Failed to release version ${versionId}:`, err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 export default router;

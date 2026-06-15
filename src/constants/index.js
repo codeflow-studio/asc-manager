@@ -8,7 +8,7 @@ export const STATUS_MAP = {
   READY_FOR_SALE: { label: "Ready for Sale", color: "#34c759", bg: "rgba(52,199,89,0.12)" },
   DEVELOPER_REJECTED: { label: "Developer Rejected", color: "#ff3b30", bg: "rgba(255,59,48,0.12)" },
   REJECTED: { label: "Rejected", color: "#ff3b30", bg: "rgba(255,59,48,0.12)" },
-  PENDING_DEVELOPER_RELEASE: { label: "Pending Release", color: "#007aff", bg: "rgba(0,122,255,0.12)" },
+  PENDING_DEVELOPER_RELEASE: { label: "Pending Developer Release", color: "#007aff", bg: "rgba(0,122,255,0.12)" },
   REMOVED_FROM_SALE: { label: "Removed", color: "#8e8e93", bg: "rgba(142,142,147,0.12)" },
 };
 
@@ -29,6 +29,8 @@ export const SUBMITTABLE_STATES = new Set([
   "REJECTED",
   "DEVELOPER_REJECTED",
 ]);
+
+export const RELEASABLE_STATES = new Set(["PENDING_DEVELOPER_RELEASE"]);
 
 export const RELEASE_TYPES = [
   { value: "MANUAL", label: "Manually release this version" },

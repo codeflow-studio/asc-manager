@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
-import { fetchAppLookup } from "../api/index.js";
+import { useState, useEffect, useCallback } from "react";
+import { fetchAppLookup, fetchVersions } from "../api/index.js";
+import { RELEASABLE_STATES } from "../constants/index.js";
 import AppIcon from "./AppIcon.jsx";
 import Badge from "./Badge.jsx";
 import AppReviewSection from "./AppReviewSection.jsx";
 import VersionHistory from "./VersionHistory.jsx";
+import ReleaseVersionButton from "./ReleaseVersionButton.jsx";
 
 function StarRating({ rating }) {
   const stars = [];
@@ -16,11 +18,25 @@ function StarRating({ rating }) {
   return <span className="text-warning tracking-wider">{stars.join("")}</span>;
 }
 
-export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion, onViewProducts, onViewXcodeCloud, onViewAnalytics, onViewReviewDetail }) {
+export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion, onViewProducts, onViewXcodeCloud, onViewAnalytics, onViewReviewDetail, onAppRefresh }) {
   const [lookupData, setLookupData] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(true);
   const [descExpanded, setDescExpanded] = useState(false);
+  const [pendingVersions, setPendingVersions] = useState([]);
+  const [versionsLoading, setVersionsLoading] = useState(true);
   const acct = accounts.find((a) => a.name === app.account);
+
+  const loadPendingVersions = useCallback(async () => {
+    try {
+      setVersionsLoading(true);
+      const versions = await fetchVersions(app.id, app.accountId);
+      setPendingVersions(versions.filter((v) => RELEASABLE_STATES.has(v.appStoreState)));
+    } catch {
+      setPendingVersions([]);
+    } finally {
+      setVersionsLoading(false);
+    }
+  }, [app.id, app.accountId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +46,15 @@ export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion
       .finally(() => { if (!cancelled) setLookupLoading(false); });
     return () => { cancelled = true; };
   }, [app.bundleId]);
+
+  useEffect(() => {
+    loadPendingVersions();
+  }, [loadPendingVersions]);
+
+  async function handleReleaseSuccess() {
+    await loadPendingVersions();
+    onAppRefresh?.();
+  }
 
   const metadataItems = [
     ["Status", <Badge key="badge" status={app.status} version={app.version} platform={app.platform} />],
@@ -97,6 +122,33 @@ export default function AppDetailPage({ app, accounts, isMobile, onSelectVersion
             </div>
           </div>
         </div>
+
+        {/* Pending Release banner */}
+        {!versionsLoading && pendingVersions.length > 0 && (
+          <div className="mb-8">
+            {pendingVersions.map((v) => (
+              <div
+                key={v.id}
+                className="border border-accent/30 bg-accent/5 rounded-[10px] px-4 py-4 mb-3 last:mb-0"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <Badge status={v.appStoreState} version={v.versionString} platform={v.platform} />
+                </div>
+                <p className="text-[12px] text-dark-dim m-0 mb-3">
+                  This version has been approved and is waiting for you to release it to the App Store.
+                </p>
+                <ReleaseVersionButton
+                  appId={app.id}
+                  versionId={v.id}
+                  accountId={app.accountId}
+                  versionString={v.versionString}
+                  platform={v.platform}
+                  onSuccess={handleReleaseSuccess}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Metadata grid */}
         <div className={`grid gap-2.5 mb-8 ${isMobile ? "grid-cols-2" : "grid-cols-3"}`}>
